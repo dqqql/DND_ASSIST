@@ -6,6 +6,9 @@ from PIL import Image, ImageTk
 import subprocess
 import sys
 
+# ==================== 常量定义区域 ====================
+# Prompt 2: 所有路径和分类相关的常量集中在文件顶部
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "campaigns")
 
@@ -15,6 +18,18 @@ CATEGORIES = {
     "地图": "maps",
     "剧情": "notes"
 }
+
+# 文件名非法字符（Prompt 9）
+INVALID_FILENAME_CHARS = r'/\:*?"<>|'
+
+# 图片预览最大尺寸（Prompt 6）
+IMAGE_PREVIEW_MAX_WIDTH = 600
+IMAGE_PREVIEW_MAX_HEIGHT = 600
+
+# 隐藏文件列表文件名
+HIDDEN_FILES_LIST = ".hidden_files"
+
+# ==================== 常量定义结束 ====================
 
 
 def ensure_dirs():
@@ -41,6 +56,8 @@ class App:
         self.current_campaign = None
         self.current_category = None
         self.category_buttons = {}  # 存储分类按钮
+        self.current_notes_path = ""  # Prompt 5: notes 当前路径（相对于 notes 根目录）
+        self.hidden_files = {}  # 存储每个跑团分类的隐藏文件列表
 
         self.build_ui()
         self.load_campaigns()
@@ -75,8 +92,19 @@ class App:
         self.category_frame.pack(side=tk.LEFT, padx=(0, 10))
 
         # 操作按钮放在右上角
-        self.action_button = tk.Button(top, text="请选择分类", font=("Arial", 10), height=2, width=12, state=tk.DISABLED)
-        self.action_button.pack(side=tk.RIGHT)
+        button_frame = tk.Frame(top)
+        button_frame.pack(side=tk.RIGHT)
+        
+        self.action_button = tk.Button(button_frame, text="请选择分类", font=("Arial", 10), height=2, width=12, state=tk.DISABLED)
+        self.action_button.pack(side=tk.LEFT, padx=2)
+        
+        # 删除按钮
+        self.delete_button = tk.Button(button_frame, text="删除文件", font=("Arial", 10), height=2, width=12, command=self.delete_file, state=tk.DISABLED)
+        self.delete_button.pack(side=tk.LEFT, padx=2)
+        
+        # Prompt 5: 返回上级按钮（仅在 notes 分类显示）
+        self.back_button = tk.Button(top, text="返回上级", font=("Arial", 10), height=2, width=12, command=self.go_back_notes)
+        # 初始不显示
 
         # 文件管理区域 - 改进布局和间距
         self.file_frame = tk.Frame(right)
@@ -201,6 +229,7 @@ class App:
         if not sel:
             return
         self.current_campaign = self.campaign_list.get(sel[0])
+        self.load_hidden_files()  # 加载隐藏文件列表
         self.show_categories()
 
     def clear_categories(self):
@@ -234,22 +263,74 @@ class App:
         
         self.current_category = CATEGORIES[name]
         
+        # Prompt 5: 重置 notes 路径
+        if self.current_category == "notes":
+            self.current_notes_path = ""
+        
         # 根据分类设置操作按钮
         if self.current_category == "maps":
             self.action_button.config(text="导入文件", command=self.import_file, state=tk.NORMAL)
         else:
             self.action_button.config(text="新建文件", command=self.create_file, state=tk.NORMAL)
         
+        # 启用删除按钮
+        self.delete_button.config(state=tk.NORMAL)
+        
+        # Prompt 5: 显示或隐藏返回上级按钮
+        self.update_back_button()
+        
         self.load_files()
 
     def load_files(self):
+        """Prompt 3: 文件列表按文件名升序排序
+           Prompt 4: notes 支持子文件夹，文件夹显示在前"""
         self.file_list.delete(0, tk.END)
         self.clear_content_viewer()
         if not self.current_campaign or not self.current_category:
             return
-        path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
-        for f in os.listdir(path):
-            self.file_list.insert(tk.END, f)
+        
+        base_path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
+        current_path = os.path.join(base_path, self.current_notes_path) if self.current_category == "notes" else base_path
+        
+        if not os.path.exists(current_path):
+            return
+        
+        items = os.listdir(current_path)
+        
+        # 获取当前路径的隐藏文件列表
+        hidden_key = f"{self.current_category}:{self.current_notes_path}" if self.current_category == "notes" else self.current_category
+        hidden_set = self.hidden_files.get(hidden_key, set())
+        
+        # Prompt 4: notes 分类支持子文件夹
+        if self.current_category == "notes":
+            folders = []
+            files = []
+            for item in items:
+                # 跳过隐藏的文件和文件夹
+                if item in hidden_set:
+                    continue
+                    
+                item_path = os.path.join(current_path, item)
+                if os.path.isdir(item_path):
+                    folders.append(item)
+                else:
+                    files.append(item)
+            
+            # Prompt 3: 排序
+            folders.sort()
+            files.sort()
+            
+            # Prompt 4: 文件夹显示在前，格式为 "[DIR] 文件夹名"
+            for folder in folders:
+                self.file_list.insert(tk.END, f"[DIR] {folder}")
+            for file in files:
+                self.file_list.insert(tk.END, file)
+        else:
+            # 其他分类只显示文件，按文件名排序，过滤隐藏文件
+            visible_items = [item for item in items if item not in hidden_set]
+            visible_items.sort()
+            for item in visible_items:
+                self.file_list.insert(tk.END, item)
 
     def import_file(self):
         if not self.current_campaign or not self.current_category:
@@ -320,9 +401,16 @@ class App:
         if not filename:
             return
         
+        # Prompt 9: 文件名合法性检查
+        for char in INVALID_FILENAME_CHARS:
+            if char in filename:
+                messagebox.showerror("错误", f"文件名不能包含以下字符: {INVALID_FILENAME_CHARS}")
+                return
+        
         # 添加.txt扩展名
         filename = filename + ".txt"
-        target_dir = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
+        base_dir = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
+        target_dir = os.path.join(base_dir, self.current_notes_path) if self.current_category == "notes" else base_dir
         file_path = os.path.join(target_dir, filename)
         
         if os.path.exists(file_path):
@@ -339,16 +427,26 @@ class App:
         open_file_with_system(file_path)
 
     def on_file_select(self, event):
-        """文件列表选择事件处理"""
+        """文件列表选择事件处理
+           Prompt 5: notes 分类支持双击文件夹进入"""
         sel = self.file_list.curselection()
         if not sel:
             self.clear_content_viewer()
             return
         
-        filename = self.file_list.get(sel[0])
-        file_path = os.path.join(
-            DATA_DIR, self.current_campaign, self.current_category, filename
-        )
+        display_name = self.file_list.get(sel[0])
+        
+        # Prompt 4 & 5: 处理 notes 文件夹
+        if self.current_category == "notes" and display_name.startswith("[DIR] "):
+            # 文件夹不显示内容
+            self.clear_content_viewer()
+            return
+        
+        filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
+        
+        base_path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
+        current_path = os.path.join(base_path, self.current_notes_path) if self.current_category == "notes" else base_path
+        file_path = os.path.join(current_path, filename)
 
         # 如果是文本文件，显示内容
         if self.current_category in ["characters", "monsters", "notes"] and filename.endswith('.txt'):
@@ -360,8 +458,11 @@ class App:
             self.clear_content_viewer()
 
     def show_text_content(self, file_path):
-        """显示文本文件内容"""
+        """显示文本文件内容
+           Prompt 7: 每次从磁盘重新读取
+           Prompt 8: 错误处理不弹窗"""
         try:
+            # Prompt 7: 每次从磁盘重新读取，不使用缓存
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
@@ -374,23 +475,40 @@ class App:
             self.content_text.insert(1.0, content)
             self.content_text.config(state=tk.DISABLED)
         except Exception as e:
+            # Prompt 8: 错误信息显示在文本区域，不弹窗
+            self.text_frame.pack(fill=tk.BOTH, expand=True)
+            self.image_frame.pack_forget()
+            
             self.content_text.config(state=tk.NORMAL)
             self.content_text.delete(1.0, tk.END)
             self.content_text.insert(1.0, f"无法读取文件: {str(e)}")
             self.content_text.config(state=tk.DISABLED)
 
     def show_image_content(self, file_path):
-        """在右侧显示图片内容"""
+        """在右侧显示图片内容
+           Prompt 6: 按右侧显示区域大小自适应缩放，保持宽高比"""
         try:
             # 隐藏文本区域，显示图片区域
             self.text_frame.pack_forget()
             self.image_frame.pack(fill=tk.BOTH, expand=True)
             
+            # 强制更新以获取实际显示区域大小
+            self.image_frame.update_idletasks()
+            
+            # Prompt 6: 获取右侧显示区域的实际大小
+            frame_width = self.image_frame.winfo_width()
+            frame_height = self.image_frame.winfo_height()
+            
+            # 如果窗口还没有完全渲染，使用默认值
+            if frame_width <= 1:
+                frame_width = IMAGE_PREVIEW_MAX_WIDTH
+            if frame_height <= 1:
+                frame_height = IMAGE_PREVIEW_MAX_HEIGHT
+            
             img = Image.open(file_path)
-            # 计算合适的显示尺寸，保持宽高比
-            display_width = 400
-            display_height = 400
-            img.thumbnail((display_width, display_height), Image.Resampling.LANCZOS)
+            
+            # Prompt 6: 按显示区域大小自适应缩放，保持宽高比
+            img.thumbnail((frame_width, frame_height), Image.Resampling.LANCZOS)
             
             photo = ImageTk.PhotoImage(img)
             self.image_label.config(image=photo, text="")
@@ -414,14 +532,124 @@ class App:
         self.image_label.config(image="", text="选择地图文件查看")
 
     def open_selected_file(self, event):
+        """Prompt 5: 双击文件打开，notes 分类双击文件夹进入"""
         sel = self.file_list.curselection()
         if not sel:
             return
-        filename = self.file_list.get(sel[0])
-        path = os.path.join(
-            DATA_DIR, self.current_campaign, self.current_category, filename
-        )
+        
+        display_name = self.file_list.get(sel[0])
+        
+        # Prompt 5: notes 分类双击文件夹进入
+        if self.current_category == "notes" and display_name.startswith("[DIR] "):
+            folder_name = display_name.replace("[DIR] ", "")
+            self.enter_notes_folder(folder_name)
+            return
+        
+        filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
+        
+        base_path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
+        current_path = os.path.join(base_path, self.current_notes_path) if self.current_category == "notes" else base_path
+        path = os.path.join(current_path, filename)
+        
         open_file_with_system(path)
+    
+    def enter_notes_folder(self, folder_name):
+        """Prompt 5: 进入 notes 子文件夹"""
+        if self.current_notes_path:
+            self.current_notes_path = os.path.join(self.current_notes_path, folder_name)
+        else:
+            self.current_notes_path = folder_name
+        
+        self.update_back_button()
+        self.load_files()
+    
+    def go_back_notes(self):
+        """Prompt 5: 返回 notes 上级目录"""
+        if not self.current_notes_path:
+            return
+        
+        # 返回上级目录
+        parent = os.path.dirname(self.current_notes_path)
+        self.current_notes_path = parent
+        
+        self.update_back_button()
+        self.load_files()
+    
+    def update_back_button(self):
+        """Prompt 5: 更新返回上级按钮的显示状态"""
+        if self.current_category == "notes" and self.current_notes_path:
+            # 在 notes 分类且不在根目录时显示
+            self.back_button.pack(side=tk.RIGHT, padx=(0, 5))
+        else:
+            # 其他情况隐藏
+            self.back_button.pack_forget()
+    
+    def load_hidden_files(self):
+        """加载当前跑团的隐藏文件列表"""
+        if not self.current_campaign:
+            return
+        
+        hidden_file_path = os.path.join(DATA_DIR, self.current_campaign, HIDDEN_FILES_LIST)
+        self.hidden_files = {}
+        
+        if os.path.exists(hidden_file_path):
+            try:
+                with open(hidden_file_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and ':' in line:
+                            key, filename = line.split(':', 1)
+                            if key not in self.hidden_files:
+                                self.hidden_files[key] = set()
+                            self.hidden_files[key].add(filename)
+            except Exception:
+                # 如果读取失败，使用空的隐藏列表
+                self.hidden_files = {}
+    
+    def save_hidden_files(self):
+        """保存当前跑团的隐藏文件列表"""
+        if not self.current_campaign:
+            return
+        
+        hidden_file_path = os.path.join(DATA_DIR, self.current_campaign, HIDDEN_FILES_LIST)
+        
+        try:
+            with open(hidden_file_path, 'w', encoding='utf-8') as f:
+                for key, filenames in self.hidden_files.items():
+                    for filename in filenames:
+                        f.write(f"{key}:{filename}\n")
+        except Exception:
+            # 保存失败时静默处理
+            pass
+    
+    def delete_file(self):
+        """删除选中的文件（仅从界面隐藏，不删除实际文件）"""
+        sel = self.file_list.curselection()
+        if not sel:
+            messagebox.showinfo("提示", "请先选择要删除的文件")
+            return
+        
+        display_name = self.file_list.get(sel[0])
+        filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
+        
+        # 确认删除
+        file_type = "文件夹" if display_name.startswith("[DIR] ") else "文件"
+        if not messagebox.askyesno("确认删除", f"确定要删除{file_type}【{filename}】吗？\n\n注意：这只会从软件中隐藏，不会删除实际文件。"):
+            return
+        
+        # 添加到隐藏列表
+        hidden_key = f"{self.current_category}:{self.current_notes_path}" if self.current_category == "notes" else self.current_category
+        if hidden_key not in self.hidden_files:
+            self.hidden_files[hidden_key] = set()
+        
+        self.hidden_files[hidden_key].add(filename)
+        self.save_hidden_files()
+        
+        # 刷新文件列表
+        self.load_files()
+        self.clear_content_viewer()
+        
+        messagebox.showinfo("删除成功", f"{file_type}【{filename}】已从软件中删除\n\n实际文件仍保存在磁盘上")
 
 
 if __name__ == "__main__":
