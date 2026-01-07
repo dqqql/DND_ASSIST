@@ -28,6 +28,8 @@ class StoryEditor:
         self.file_path = None
         self.campaigns = self.get_available_campaigns()
         self.unsaved_changes = False
+        self._loading_branch = False  # 标志是否正在加载分支数据
+        self._previous_branch_index = None  # 记录上一个选择的分支索引
 
         self.build_ui()
         self.update_title()
@@ -71,7 +73,6 @@ class StoryEditor:
         file_menu.add_command(label="新建剧情", command=self.new_story, accelerator="Ctrl+N")
         file_menu.add_command(label="打开剧情", command=self.load_story, accelerator="Ctrl+O")
         file_menu.add_separator()
-        file_menu.add_command(label="保存", command=self.save_story, accelerator="Ctrl+S")
         file_menu.add_command(label="保存到跑团", command=self.save_to_campaign, accelerator="Ctrl+Shift+S")
         file_menu.add_separator()
         file_menu.add_command(label="退出", command=self.on_closing, accelerator="Ctrl+Q")
@@ -127,9 +128,7 @@ class StoryEditor:
         title_entry = ttk.Entry(toolbar, textvariable=self.title_var, width=20)
         title_entry.pack(side=tk.LEFT, padx=2)
         
-        # 右侧按钮
-        ttk.Button(toolbar, text="保存到跑团", command=self.save_to_campaign, 
-                  style="Primary.TButton").pack(side=tk.RIGHT, padx=2)
+
 
     def create_main_content(self):
         """创建主要内容区域"""
@@ -319,9 +318,7 @@ class StoryEditor:
         self.branch_exit.pack(fill=tk.X, pady=2)
         self.branch_exit.bind('<<ComboboxSelected>>', self.on_branch_change)
         
-        # 保存分支按钮
-        ttk.Button(form_frame, text="保存分支修改", command=self.save_branch, 
-                  style="Primary.TButton").pack(pady=20)
+
 
     def create_status_bar(self):
         """创建状态栏"""
@@ -363,7 +360,37 @@ class StoryEditor:
 
     def on_branch_change(self, event=None):
         """分支内容改变事件"""
+        # 只在不是加载状态时才自动保存
+        if not getattr(self, '_loading_branch', False) and self.branch_list.curselection():
+            self.auto_save_current_branch()
         self.mark_unsaved()
+
+    def auto_save_current_branch(self):
+        """自动保存当前编辑的分支"""
+        if not self.branch_list.curselection() or not self.current_node:
+            return
+        
+        idx = self.branch_list.curselection()[0]
+        if "branches" not in self.current_node or idx >= len(self.current_node["branches"]):
+            return
+            
+        branch = self.current_node["branches"][idx]
+        
+        # 获取当前编辑区的值
+        choice = self.branch_choice.get().strip()
+        entry = self.branch_entry.get()
+        exit_node = self.branch_exit.get()
+        
+        # 更新分支数据
+        branch["choice"] = choice if choice else f"分支{idx+1}"
+        branch["entry"] = entry
+        branch["exit"] = exit_node
+        
+        # 刷新显示但保持选中状态
+        selected_idx = idx
+        self.refresh_branches()
+        if selected_idx < self.branch_list.size():
+            self.branch_list.selection_set(selected_idx)
 
     def on_double_click_node(self, event):
         """双击节点事件 - 快速编辑标题"""
@@ -373,12 +400,22 @@ class StoryEditor:
 
     def on_select_branch(self, event):
         """选择分支事件"""
+        # 先保存之前选择的分支（如果有的话）
+        if hasattr(self, '_previous_branch_index') and self._previous_branch_index is not None:
+            self.save_previous_branch(self._previous_branch_index)
+        
         if not self.branch_list.curselection():
+            self._previous_branch_index = None
             return
         
         idx = self.branch_list.curselection()[0]
+        self._previous_branch_index = idx
+        
         if self.current_node and "branches" in self.current_node:
             branch = self.current_node["branches"][idx]
+            
+            # 临时禁用自动保存，避免在加载数据时触发
+            self._loading_branch = True
             
             # 加载分支数据到编辑区
             self.branch_choice.delete(0, tk.END)
@@ -386,6 +423,33 @@ class StoryEditor:
             
             self.branch_entry.set(branch.get("entry", ""))
             self.branch_exit.set(branch.get("exit", ""))
+            
+            # 重新启用自动保存
+            self._loading_branch = False
+
+    def save_previous_branch(self, idx):
+        """保存之前编辑的分支"""
+        if not self.current_node or "branches" not in self.current_node:
+            return
+        
+        if idx >= len(self.current_node["branches"]):
+            return
+            
+        branch = self.current_node["branches"][idx]
+        
+        # 获取当前编辑区的值
+        choice = self.branch_choice.get().strip()
+        entry = self.branch_entry.get()
+        exit_node = self.branch_exit.get()
+        
+        # 更新分支数据
+        branch["choice"] = choice if choice else f"分支{idx+1}"
+        branch["entry"] = entry
+        branch["exit"] = exit_node
+        
+        # 刷新显示
+        self.refresh_branches()
+        self.mark_unsaved()
 
     def on_closing(self):
         """窗口关闭事件"""
@@ -499,12 +563,20 @@ class StoryEditor:
 
     def on_select_node(self, event):
         """选择节点事件"""
+        # 先保存当前分支的修改（如果有的话）
+        if hasattr(self, '_previous_branch_index') and self._previous_branch_index is not None:
+            self.save_previous_branch(self._previous_branch_index)
+        
         if not self.node_list.curselection():
             return
         idx = self.node_list.curselection()[0]
         self.current_node = self.data["nodes"][idx]
         self.load_node()
         self.refresh_branches()
+        
+        # 重置分支选择状态
+        self._previous_branch_index = None
+        
         self.update_status(f"已选择节点: {self.current_node.get('id', '')}")
 
     def load_node(self):
@@ -599,6 +671,11 @@ class StoryEditor:
 
     def refresh_branches(self):
         """刷新分支列表"""
+        # 记录当前选中的分支
+        current_selection = None
+        if self.branch_list.curselection():
+            current_selection = self.branch_list.curselection()[0]
+        
         self.branch_list.delete(0, tk.END)
 
         if not self.current_node or self.current_node.get("type") != "main":
@@ -606,6 +683,7 @@ class StoryEditor:
             self.branch_choice.delete(0, tk.END)
             self.branch_entry.set("")
             self.branch_exit.set("")
+            self._previous_branch_index = None
             return
 
         branches = self.current_node.get("branches", [])
@@ -615,12 +693,21 @@ class StoryEditor:
             exit_node = b.get("exit", "")
             display_text = f"{choice} → {entry} → {exit_node}"
             self.branch_list.insert(tk.END, display_text)
+        
+        # 恢复选中状态
+        if current_selection is not None and current_selection < len(branches):
+            self.branch_list.selection_set(current_selection)
+            self._previous_branch_index = current_selection
 
     def add_branch(self):
         """添加分支"""
         if not self.current_node or self.current_node.get("type") != "main":
             messagebox.showwarning("警告", "只有主线节点可以添加分支")
             return
+
+        # 先保存当前分支的修改（如果有的话）
+        if hasattr(self, '_previous_branch_index') and self._previous_branch_index is not None:
+            self.save_previous_branch(self._previous_branch_index)
 
         branch_count = len(self.current_node.get("branches", []))
         new_branch = {
@@ -633,7 +720,9 @@ class StoryEditor:
         self.refresh_branches()
         
         # 选中新添加的分支
-        self.branch_list.selection_set(len(self.current_node["branches"]) - 1)
+        new_index = len(self.current_node["branches"]) - 1
+        self.branch_list.selection_set(new_index)
+        self._previous_branch_index = new_index
         self.on_select_branch(None)
         
         self.mark_unsaved()
@@ -648,6 +737,10 @@ class StoryEditor:
         if messagebox.askyesno("确认删除", "确定要删除选中的分支吗？"):
             idx = self.branch_list.curselection()[0]
             del self.current_node["branches"][idx]
+            
+            # 重置分支选择状态
+            self._previous_branch_index = None
+            
             self.refresh_branches()
             
             # 清空分支编辑区
@@ -658,29 +751,7 @@ class StoryEditor:
             self.mark_unsaved()
             self.update_status("分支已删除")
 
-    def save_branch(self):
-        """保存分支修改"""
-        if not self.branch_list.curselection():
-            messagebox.showwarning("警告", "请先选择要修改的分支")
-            return
 
-        idx = self.branch_list.curselection()[0]
-        branch = self.current_node["branches"][idx]
-
-        choice = self.branch_choice.get().strip()
-        if not choice:
-            messagebox.showerror("错误", "选项文本不能为空")
-            return
-
-        branch["choice"] = choice
-        branch["entry"] = self.branch_entry.get()
-        branch["exit"] = self.branch_exit.get()
-
-        self.refresh_branches()
-        self.branch_list.selection_set(idx)  # 保持选中状态
-        
-        self.mark_unsaved()
-        self.update_status("分支已保存")
 
     # ---------- 文件 ----------
 
