@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>剧情结构预览</title>
+  <style>
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    display: flex;
+    height: 100vh;
+  }
+
+  #graph {
+    flex: 2;
+    border-right: 1px solid #ccc;
+    overflow: auto;
+    background: #fafafa;
+  }
+
+  #panel {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  /* ===== 新增：SVG 交互样式 ===== */
+
+  svg .node rect {
+    transition: stroke 0.15s, stroke-width 0.15s, opacity 0.15s;
+  }
+
+  svg .edge path {
+    transition: stroke 0.15s, stroke-width 0.15s, opacity 0.15s;
+  }
+
+.hovered rect {
+  stroke: #ff9800;
+  stroke-width: 4px;
+}
+
+
+  .active rect {
+    stroke: #e91e63;
+    stroke-width: 4px;
+  }
+
+  .dimmed {
+    opacity: 0.15;
+  }
+</style>
+
+</head>
+<body>
+
+<div id="graph"></div>
+
+<div id="panel">
+<h2>节点详情</h2>
+
+<button id="clearBtn" style="margin-bottom:10px;">
+  清除选择
+</button>
+
+<div class="hint">点击左侧节点查看剧情内容</div>
+<hr>
+<div id="content"></div>
+
+</div>
+
+<script src="preview.js"></script>
+</body>
+</html>

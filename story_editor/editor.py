@@ -705,19 +705,19 @@ class StoryEditor:
         """保存剧情到指定跑团"""
         if not self.data.get("nodes"):
             messagebox.showwarning("警告", "剧情为空，请先添加节点")
-            return
+            return False
         
         # 刷新跑团列表
         self.refresh_campaigns()
         
         if not self.campaigns:
             messagebox.showerror("错误", "没有找到可用的跑团\n请先在主程序中创建跑团")
-            return
+            return False
         
         # 创建选择跑团的对话框
         dialog = tk.Toplevel(self.root)
-        dialog.title("选择跑团")
-        dialog.geometry("400x300")
+        dialog.title("选择跑团和剧本")
+        dialog.geometry("450x400")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -727,7 +727,7 @@ class StoryEditor:
         y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
         
-        result = {"campaign": None, "filename": None}
+        result = {"campaign": None, "script": None, "filename": None}
         
         # 主框架
         main_frame = ttk.Frame(dialog)
@@ -742,8 +742,19 @@ class StoryEditor:
         if self.campaigns:
             campaign_combo.set(self.campaigns[0])
         
+        # 剧本选择
+        ttk.Label(main_frame, text="剧本名称:").pack(anchor="w")
+        script_var = tk.StringVar()
+        script_entry = ttk.Entry(main_frame, textvariable=script_var)
+        script_entry.pack(fill=tk.X, pady=(5, 5))
+        
+        # 剧本提示
+        script_hint = ttk.Label(main_frame, text="输入剧本名称（如：龙与地下城、克苏鲁的呼唤等）", 
+                               foreground="gray", font=("Arial", 8))
+        script_hint.pack(anchor="w", pady=(0, 15))
+        
         # 文件名输入
-        ttk.Label(main_frame, text="文件名:").pack(anchor="w")
+        ttk.Label(main_frame, text="剧情文件名:").pack(anchor="w")
         filename_var = tk.StringVar()
         filename_var.set(self.data.get("title", "新剧情"))
         filename_entry = ttk.Entry(main_frame, textvariable=filename_var)
@@ -760,10 +771,15 @@ class StoryEditor:
         
         def on_save():
             campaign = campaign_var.get()
+            script = script_var.get().strip()
             filename = filename_var.get().strip()
             
             if not campaign:
                 messagebox.showerror("错误", "请选择跑团")
+                return
+            
+            if not script:
+                messagebox.showerror("错误", "请输入剧本名称")
                 return
             
             if not filename:
@@ -773,11 +789,15 @@ class StoryEditor:
             # 检查文件名合法性
             invalid_chars = r'/\:*?"<>|'
             for char in invalid_chars:
+                if char in script:
+                    messagebox.showerror("错误", f"剧本名称不能包含以下字符: {invalid_chars}")
+                    return
                 if char in filename:
                     messagebox.showerror("错误", f"文件名不能包含以下字符: {invalid_chars}")
                     return
             
             result["campaign"] = campaign
+            result["script"] = script
             result["filename"] = filename
             dialog.destroy()
         
@@ -793,10 +813,12 @@ class StoryEditor:
         dialog.wait_window()
         
         # 执行保存
-        if result["campaign"] and result["filename"]:
-            self._save_to_campaign_path(result["campaign"], result["filename"])
+        if result["campaign"] and result["script"] and result["filename"]:
+            return self._save_to_campaign_path(result["campaign"], result["script"], result["filename"])
+        
+        return False
 
-    def _save_to_campaign_path(self, campaign, filename):
+    def _save_to_campaign_path(self, campaign, script, filename):
         """实际执行保存到跑团目录"""
         try:
             # 确保文件名以.json结尾
@@ -814,17 +836,48 @@ class StoryEditor:
             if os.path.exists(save_path):
                 if not messagebox.askyesno("文件已存在", 
                                          f"文件 {filename} 已存在，是否覆盖？"):
-                    return
+                    return False
+            
+            # 确保当前编辑的节点已保存
+            if self.current_node:
+                self.save_node()
             
             # 保存文件
             with open(save_path, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
             
+            # 同时保存到output目录
+            self._save_to_output_dir(campaign, script, filename)
+            
+            # 更新文件路径和状态
+            self.file_path = save_path
+            self.mark_saved()
+            
             messagebox.showinfo("保存成功", 
-                              f"剧情已保存到跑团【{campaign}】\n文件路径: {save_path}")
+                              f"剧情已保存到跑团【{campaign}】的剧本【{script}】\n文件路径: {save_path}")
+            
+            return True
             
         except Exception as e:
             messagebox.showerror("保存失败", f"保存文件时发生错误:\n{str(e)}")
+            return False
+    
+    def _save_to_output_dir(self, campaign, script, filename):
+        """同时保存到output目录以供工具链使用"""
+        try:
+            # 创建output目录结构：output/跑团名/剧本名/
+            output_dir = os.path.join(BASE_DIR, "output", campaign, script)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            
+            # 保存到output目录
+            output_path = os.path.join(output_dir, filename)
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=2)
+                
+        except Exception as e:
+            # output目录保存失败不影响主要保存流程
+            print(f"Warning: Failed to save to output directory: {e}")
 
     def add_node(self, node_type="main"):
         """添加节点"""
@@ -973,38 +1026,13 @@ class StoryEditor:
             messagebox.showerror("加载失败", f"无法加载文件:\n{str(e)}")
 
     def save_story(self):
-        """保存剧情文件"""
-        if not self.file_path:
-            return self.save_story_as()
-        
-        try:
-            # 确保当前编辑的节点已保存
-            if self.current_node:
-                self.save_node()
-            
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
-            
-            self.mark_saved()
-            self.update_status(f"已保存: {os.path.basename(self.file_path)}")
-            return True
-            
-        except Exception as e:
-            messagebox.showerror("保存失败", f"无法保存文件:\n{str(e)}")
-            return False
+        """保存剧情文件 - 必须选择跑团"""
+        # 强制使用保存到跑团功能
+        return self.save_to_campaign()
 
     def save_story_as(self):
-        """另存为剧情文件"""
-        path = filedialog.asksaveasfilename(
-            title="保存剧情文件",
-            defaultextension=".json",
-            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-        )
-        if not path:
-            return False
-        
-        self.file_path = path
-        return self.save_story()
+        """另存为剧情文件 - 重定向到保存到跑团"""
+        return self.save_to_campaign()
 
 
 if __name__ == "__main__":
