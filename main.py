@@ -61,7 +61,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("DND 跑团管理器")
-        self.root.geometry("900x500")
+        self.root.geometry("1170x650")
 
         ensure_dirs()
 
@@ -722,8 +722,7 @@ class App:
             self.content_text.config(state=tk.DISABLED)
 
     def show_json_story_content(self, file_path):
-        """显示JSON剧情文件内容
-           解析JSON文件并以结构化格式显示"""
+        """显示JSON剧情文件的统计信息"""
         try:
             # 从磁盘重新读取文件内容
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -732,14 +731,8 @@ class App:
             # 解析JSON内容
             story_data = json.loads(content)
             
-            # 验证JSON结构
-            validation_error = self._validate_story_structure(story_data)
-            if validation_error:
-                self._show_json_error(f"JSON结构错误: {validation_error}")
-                return
-            
-            # 构建结构化显示文本
-            display_text = self._build_story_display_text(story_data)
+            # 构建统计信息显示文本
+            display_text = self._build_story_statistics(story_data, file_path)
             
             # 显示文本区域，隐藏图片区域
             self.text_frame.pack(fill=tk.BOTH, expand=True)
@@ -751,7 +744,7 @@ class App:
             self.content_text.config(state=tk.DISABLED)
             
         except json.JSONDecodeError as e:
-            # JSON格式错误处理 - 提供详细的错误信息和建议
+            # JSON格式错误处理
             error_msg = f"JSON格式错误: {str(e)}\n\n"
             error_msg += "常见问题和解决方案:\n"
             error_msg += "• 检查是否有多余的逗号\n"
@@ -770,199 +763,167 @@ class App:
             # 其他错误处理
             self._show_json_error(f"无法读取文件: {str(e)}\n\n请检查文件是否损坏或格式是否正确。")
     
-    def _validate_story_structure(self, story_data):
-        """验证JSON剧情文件的基本结构
-           返回错误信息，如果没有错误返回None"""
-        try:
-            # 检查必需的顶级字段
-            if not isinstance(story_data, dict):
-                return "根元素必须是一个对象"
-            
-            if "title" not in story_data:
-                return "缺少必需的 'title' 字段"
-            
-            if "nodes" not in story_data:
-                return "缺少必需的 'nodes' 字段"
-            
-            nodes = story_data["nodes"]
-            if not isinstance(nodes, list):
-                return "'nodes' 字段必须是一个数组"
-            
-            if len(nodes) == 0:
-                return "'nodes' 数组不能为空"
-            
-            # 检查节点结构
-            for i, node in enumerate(nodes):
-                if not isinstance(node, dict):
-                    return f"节点 {i} 必须是一个对象"
-                
-                # 检查必需字段
-                required_fields = ["id", "type", "title"]
-                for field in required_fields:
-                    if field not in node:
-                        return f"节点 {i} 缺少必需的 '{field}' 字段"
-                
-                # 检查节点类型
-                node_type = node.get("type")
-                if node_type not in ["main", "branch"]:
-                    return f"节点 {i} 的 'type' 字段必须是 'main' 或 'branch'"
-                
-                # 检查主线节点的分支结构
-                if node_type == "main" and "branches" in node:
-                    branches = node["branches"]
-                    if not isinstance(branches, list):
-                        return f"主线节点 {i} 的 'branches' 字段必须是一个数组"
-                    
-                    for j, branch in enumerate(branches):
-                        if not isinstance(branch, dict):
-                            return f"主线节点 {i} 的分支 {j} 必须是一个对象"
-                        
-                        if "choice" not in branch:
-                            return f"主线节点 {i} 的分支 {j} 缺少 'choice' 字段"
-            
-            return None  # 没有错误
-            
-        except Exception as e:
-            return f"验证过程中发生错误: {str(e)}"
-    
-    def _build_story_display_text(self, story_data):
-        """构建剧情显示文本"""
+    def _build_story_statistics(self, story_data, file_path):
+        """构建剧情统计信息"""
         lines = []
         
-        # 显示标题 - 简洁的格式，跳过默认标题
-        title = story_data.get("title", "").strip()
-        if title and title != "新剧情":
-            lines.append(f"剧情: {title}")
-            lines.append("")
+        # 文件基本信息
+        filename = os.path.basename(file_path)
+        lines.append("=" * 50)
+        lines.append(f"剧情文件: {filename}")
+        lines.append("=" * 50)
+        lines.append("")
+        
+        # 剧情标题
+        title = story_data.get("title", "未命名剧情").strip()
+        lines.append(f"📖 剧情标题: {title}")
+        lines.append("")
         
         # 获取所有节点
         nodes = story_data.get("nodes", [])
         
-        # 按类型分组节点
+        if not nodes:
+            lines.append("⚠️  警告: 剧情中没有找到任何节点")
+            return "\n".join(lines)
+        
+        # 统计不同类型的节点
         main_nodes = [node for node in nodes if node.get("type") == "main"]
-        branch_nodes = {node.get("id"): node for node in nodes if node.get("type") == "branch"}
+        branch_nodes = [node for node in nodes if node.get("type") == "branch"]
+        other_nodes = [node for node in nodes if node.get("type") not in ["main", "branch"]]
         
-        # 构建节点关系图
-        node_map = {node.get("id"): node for node in nodes}
+        # 基本统计
+        lines.append("📊 基本统计:")
+        lines.append(f"   • 节点总数: {len(nodes)}")
+        lines.append(f"   • 主线节点: {len(main_nodes)}")
+        lines.append(f"   • 分支节点: {len(branch_nodes)}")
+        if other_nodes:
+            lines.append(f"   • 其他节点: {len(other_nodes)}")
+        lines.append("")
         
-        # 显示剧情流程
-        lines.extend(self._build_story_flow(main_nodes, branch_nodes, node_map))
+        # 分支统计
+        total_branches = 0
+        nodes_with_branches = 0
+        for node in main_nodes:
+            branches = node.get("branches", [])
+            if branches:
+                nodes_with_branches += 1
+                total_branches += len(branches)
+        
+        lines.append("🌿 分支统计:")
+        lines.append(f"   • 总分支数: {total_branches}")
+        lines.append(f"   • 有分支的主线节点: {nodes_with_branches}")
+        if nodes_with_branches > 0:
+            avg_branches = total_branches / nodes_with_branches
+            lines.append(f"   • 平均每个分支点的选择数: {avg_branches:.1f}")
+        lines.append("")
+        
+        # 内容完整性检查
+        lines.append("✅ 内容完整性:")
+        
+        # 检查空标题和空内容
+        empty_title_count = 0
+        empty_content_count = 0
+        meaningful_nodes = 0
+        
+        for node in nodes:
+            title = node.get("title", "").strip()
+            content = node.get("content", "").strip()
+            
+            if not title or title in ["新节点", "未命名节点", "未命名"]:
+                empty_title_count += 1
+            if not content:
+                empty_content_count += 1
+            
+            # 判断是否是有意义的节点
+            if title and title not in ["新节点", "未命名节点", "未命名"]:
+                meaningful_nodes += 1
+        
+        lines.append(f"   • 有意义的节点: {meaningful_nodes}/{len(nodes)}")
+        if empty_title_count > 0:
+            lines.append(f"   • 空标题节点: {empty_title_count}")
+        if empty_content_count > 0:
+            lines.append(f"   • 空内容节点: {empty_content_count}")
+        
+        # 连接性检查
+        connected_nodes = set()
+        orphaned_nodes = []
+        
+        # 找到所有被引用的节点
+        for node in nodes:
+            next_id = node.get("next")
+            if next_id:
+                connected_nodes.add(next_id)
+            
+            for branch in node.get("branches", []):
+                entry_id = branch.get("entry")
+                exit_id = branch.get("exit")
+                if entry_id:
+                    connected_nodes.add(entry_id)
+                if exit_id:
+                    connected_nodes.add(exit_id)
+        
+        # 找到孤立节点（除了第一个节点）
+        node_ids = [node.get("id") for node in nodes if node.get("id")]
+        if node_ids:
+            first_node_id = node_ids[0]  # 假设第一个节点是起始节点
+            for node_id in node_ids[1:]:  # 跳过第一个节点
+                if node_id not in connected_nodes:
+                    orphaned_nodes.append(node_id)
+        
+        if orphaned_nodes:
+            lines.append(f"   • 孤立节点: {len(orphaned_nodes)} ({', '.join(orphaned_nodes[:3])}{'...' if len(orphaned_nodes) > 3 else ''})")
+        else:
+            lines.append("   • 所有节点都已连接")
+        
+        lines.append("")
+        
+        # 主线节点列表
+        if main_nodes:
+            lines.append("🎯 主线流程:")
+            for i, node in enumerate(main_nodes[:5], 1):  # 只显示前5个
+                title = node.get("title", "未命名")
+                node_id = node.get("id", "")
+                branches_count = len(node.get("branches", []))
+                
+                branch_info = f" ({branches_count}个选择)" if branches_count > 0 else ""
+                lines.append(f"   {i}. {title} [{node_id}]{branch_info}")
+            
+            if len(main_nodes) > 5:
+                lines.append(f"   ... 还有 {len(main_nodes) - 5} 个主线节点")
+            lines.append("")
+        
+        # 检查是否有对应的SVG文件
+        svg_path = self._get_svg_path_for_json(file_path)
+        if svg_path and os.path.exists(svg_path):
+            lines.append("")
+            lines.append("📈 流程图: 已生成，可双击文件名在外部查看")
         
         return "\n".join(lines)
     
-    def _build_story_flow(self, main_nodes, branch_nodes, node_map):
-        """构建清晰的剧情流程显示"""
-        lines = []
-        
-        # 按ID排序主线节点
-        main_nodes.sort(key=lambda x: x.get("id", ""))
-        
-        # 过滤掉空节点或默认节点
-        filtered_main_nodes = []
-        for node in main_nodes:
-            if self._is_meaningful_node(node):
-                filtered_main_nodes.append(node)
-        
-        for i, main_node in enumerate(filtered_main_nodes):
-            title = main_node.get("title", "未命名")
-            content = main_node.get("content", "")
+    def _get_svg_path_for_json(self, json_file_path):
+        """根据JSON文件路径查找对应的SVG文件路径"""
+        try:
+            # 获取文件名（不含扩展名）
+            filename = os.path.basename(json_file_path)
+            filename_without_ext = os.path.splitext(filename)[0]
             
-            # 主线节点标题 - 使用粗体效果
-            lines.append(f"■ {title}")
+            # 在output文件夹中搜索对应的SVG文件
+            output_base = os.path.join(BASE_DIR, "output", self.current_campaign)
             
-            # 主线节点内容 - 缩进显示
-            if content:
-                lines.append(f"  {content}")
+            if not os.path.exists(output_base):
+                return None
             
-            # 显示分支选择
-            branches = main_node.get("branches", [])
-            if branches:
-                lines.append("")
-                lines.append("  选择:")
-                for branch in branches:
-                    choice = branch.get("choice", "未命名选择")
-                    entry_id = branch.get("entry", "")
-                    exit_id = branch.get("exit", "")
-                    
-                    lines.append(f"    • {choice}")
-                    
-                    # 显示分支路径内容（不重复标题）
-                    if entry_id in branch_nodes:
-                        branch_path = self._trace_branch_path(entry_id, branch_nodes, exit_id, show_title=False)
-                        for path_line in branch_path:
-                            lines.append(f"      {path_line}")
-                    
-                    if exit_id and exit_id in node_map:
-                        exit_title = node_map[exit_id].get("title", exit_id)
-                        lines.append(f"      → 回到: {exit_title}")
+            # 遍历所有子文件夹，查找匹配的SVG文件
+            for script_folder in os.listdir(output_base):
+                script_path = os.path.join(output_base, script_folder)
+                if os.path.isdir(script_path):
+                    svg_path = os.path.join(script_path, f"{filename_without_ext}.svg")
+                    if os.path.exists(svg_path):
+                        return svg_path
             
-            # 显示下一个主线节点
-            next_id = main_node.get("next")
-            if next_id and next_id in node_map:
-                next_node = node_map[next_id]
-                if self._is_meaningful_node(next_node):
-                    next_title = next_node.get("title", next_id)
-                    lines.append("")
-                    lines.append("  ↓")
-                    lines.append(f"  {next_title}")
-            
-            lines.append("")
-        
-        return lines
-    
-    def _is_meaningful_node(self, node):
-        """判断节点是否有意义（不是空节点或默认节点）"""
-        if not node:
-            return False
-        
-        title = node.get("title", "").strip()
-        content = node.get("content", "").strip()
-        
-        # 跳过空标题或默认标题
-        if not title or title in ["新节点", "未命名节点", "未命名"]:
-            return False
-        
-        # 跳过没有内容且没有分支的节点
-        if not content and not node.get("branches"):
-            return False
-        
-        return True
-    
-    def _trace_branch_path(self, start_id, branch_nodes, exit_id, show_title=True):
-        """追踪分支路径"""
-        path_lines = []
-        current_id = start_id
-        visited = set()
-        
-        while current_id and current_id in branch_nodes and current_id not in visited:
-            visited.add(current_id)
-            node = branch_nodes[current_id]
-            
-            title = node.get("title", "未命名")
-            content = node.get("content", "")
-            
-            # 只在需要时显示分支标题
-            if show_title:
-                path_lines.append(f"▸ {title}")
-            
-            # 分支内容 - 直接显示或缩进显示
-            if content:
-                if show_title:
-                    path_lines.append(f"  {content}")
-                else:
-                    path_lines.append(content)
-            
-            # 检查是否到达出口
-            if current_id == exit_id:
-                break
-                
-            current_id = node.get("next")
-            
-            # 如果有下一个节点，添加箭头
-            if current_id and current_id in branch_nodes:
-                path_lines.append("  ↓")
-        
-        return path_lines
+            return None
+        except Exception:
+            return None
     
     def _show_json_error(self, error_message):
         """显示JSON错误信息"""

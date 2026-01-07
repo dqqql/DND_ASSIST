@@ -4,7 +4,7 @@
     {
       "id": "node_01",
       "type": "main",
-      "title": "出生",
+      "title": "啊",
       "content": "",
       "next": "node_02",
       "branches": []
@@ -12,7 +12,7 @@
     {
       "id": "node_02",
       "type": "main",
-      "title": "长大",
+      "title": "吧",
       "content": "",
       "next": "node_03",
       "branches": []
@@ -20,7 +20,7 @@
     {
       "id": "node_03",
       "type": "main",
-      "title": "死亡",
+      "title": "从",
       "content": "",
       "next": null,
       "branches": []

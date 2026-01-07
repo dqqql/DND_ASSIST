@@ -14,31 +14,11 @@
       "type": "main",
       "title": "长大",
       "content": "",
-      "next": "node_05",
-      "branches": [
-        {
-          "choice": "谈恋爱",
-          "entry": "node_03",
-          "exit": "node_05"
-        }
-      ]
+      "next": "node_03",
+      "branches": []
     },
     {
       "id": "node_03",
-      "type": "branch",
-      "title": "结婚",
-      "content": "",
-      "next": "node_04"
-    },
-    {
-      "id": "node_04",
-      "type": "branch",
-      "title": "离婚",
-      "content": "",
-      "next": "node_05"
-    },
-    {
-      "id": "node_05",
       "type": "main",
       "title": "死亡",
       "content": "",
