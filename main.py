@@ -6,6 +6,17 @@ from PIL import Image, ImageTk
 import subprocess
 import sys
 
+# 导入主题系统
+from theme_integration import (
+    integrate_theme_with_app, create_themed_dialog, create_themed_dialog_content,
+    show_themed_info, show_themed_error, show_themed_warning, ask_themed_yesno
+)
+from theme_utils import (
+    create_themed_button, add_interaction_feedback, create_enhanced_listbox, add_list_interaction_feedback,
+    apply_enhanced_interaction_feedback, enhance_category_button_feedback, update_category_button_states
+)
+from theme_system import get_theme_manager
+
 # ==================== 常量定义区域 ====================
 # Prompt 2: 所有路径和分类相关的常量集中在文件顶部
 
@@ -56,65 +67,106 @@ class App:
         self.current_campaign = None
         self.current_category = None
         self.category_buttons = {}  # 存储分类按钮
+        self.category_handlers = {}  # 存储分类按钮的交互处理器
         self.current_notes_path = ""  # Prompt 5: notes 当前路径（相对于 notes 根目录）
         self.hidden_files = {}  # 存储每个跑团分类的隐藏文件列表
 
         self.build_ui()
         self.load_campaigns()
+        
+        # 应用主题系统到整个应用
+        self.theme_integrator = integrate_theme_with_app(self)
+        
+        # 应用增强的交互反馈到所有控件
+        self._apply_enhanced_feedback()
+        
+        # 应用视觉元素优化
+        self._apply_visual_enhancements()
+        
+        # 确保视觉一致性
+        self._enhance_visual_consistency()
 
     def build_ui(self):
-        # 左侧面板 - 增加内边距
+        # 获取布局管理器和主题管理器
+        from layout_system import get_layout_manager, get_component_spacing, get_grid_aligned_spacing
+        layout_manager = get_layout_manager()
+        theme_manager = get_theme_manager()
+        theme = theme_manager.get_current_theme()
+        
+        # 左侧面板 - 使用网格对齐的内边距
+        left_panel_padding = get_component_spacing("window_edge")
+        panel_spacing = get_component_spacing("panel")
+        
         left = tk.Frame(self.root, width=200)
-        left.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 5), pady=10)
+        left.pack(side=tk.LEFT, fill=tk.Y, 
+                 padx=(left_panel_padding, panel_spacing), 
+                 pady=left_panel_padding)
 
-        # 右侧面板 - 增加内边距
+        # 右侧面板 - 使用网格对齐的内边距
         right = tk.Frame(self.root)
-        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 10), pady=10)
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, 
+                  padx=(panel_spacing, left_panel_padding), 
+                  pady=left_panel_padding)
 
-        # 跑团列表标题 - 改进字体和间距
-        tk.Label(left, text="跑团列表", font=("Arial", 12, "bold")).pack(pady=(0, 8))
+        # 跑团列表标题 - 改进字体和间距，使用网格对齐
+        title_spacing = get_grid_aligned_spacing(8)
+        tk.Label(left, text="跑团列表", 
+                font=theme.typography.get_font_tuple(theme.typography.size_large, theme.typography.weight_bold)
+                ).pack(pady=(0, title_spacing))
 
-        self.campaign_list = tk.Listbox(left, font=("Arial", 10))
-        self.campaign_list.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+        # 跑团列表 - 使用增强的列表控件和网格对齐间距
+        list_spacing = get_grid_aligned_spacing(8)
+        self.campaign_list = create_enhanced_listbox(left, font=theme.typography.get_font_tuple(theme.typography.size_medium))
+        self.campaign_list.pack(fill=tk.BOTH, expand=True, pady=(0, list_spacing))
         self.campaign_list.bind("<<ListboxSelect>>", self.on_campaign_select)
 
-        # 按钮样式优化 - 统一字体、间距和大小
-        tk.Button(left, text="新建跑团", command=self.create_campaign, 
-                 font=("Arial", 10), height=2).pack(fill=tk.X, pady=2)
-        tk.Button(left, text="删除跑团", command=self.delete_campaign,
-                 font=("Arial", 10), height=2).pack(fill=tk.X, pady=2)
+        # 按钮样式优化 - 使用主题化按钮，统一字体、间距和大小，网格对齐间距
+        button_spacing = get_component_spacing("button_group") // 2
+        
+        create_campaign_btn = create_themed_button(left, text="新建跑团", command=self.create_campaign)
+        create_campaign_btn.pack(fill=tk.X, pady=button_spacing)
+        
+        delete_campaign_btn = create_themed_button(left, text="删除跑团", command=self.delete_campaign)
+        delete_campaign_btn.pack(fill=tk.X, pady=button_spacing)
 
-        # 顶部分类按钮区域 - 增加内边距
+        # 顶部分类按钮区域 - 使用网格对齐的内边距
+        section_spacing = get_component_spacing("section")
         top = tk.Frame(right)
-        top.pack(fill=tk.X, pady=(0, 10))
+        top.pack(fill=tk.X, pady=(0, section_spacing))
 
+        # 分类按钮容器 - 改进间距
+        category_spacing = get_component_spacing("content")
         self.category_frame = tk.Frame(top)
-        self.category_frame.pack(side=tk.LEFT, padx=(0, 10))
+        self.category_frame.pack(side=tk.LEFT, padx=(0, category_spacing))
 
-        # 操作按钮放在右上角
+        # 操作按钮放在右上角 - 使用主题化按钮和网格对齐间距
         button_frame = tk.Frame(top)
         button_frame.pack(side=tk.RIGHT)
         
-        self.action_button = tk.Button(button_frame, text="请选择分类", font=("Arial", 10), height=2, width=12, state=tk.DISABLED)
-        self.action_button.pack(side=tk.LEFT, padx=2)
+        action_button_spacing = get_component_spacing("button_group") // 2
+        self.action_button = create_themed_button(button_frame, text="请选择分类", width=12, state=tk.DISABLED)
+        self.action_button.pack(side=tk.LEFT, padx=action_button_spacing)
         
         # 删除按钮
-        self.delete_button = tk.Button(button_frame, text="删除文件", font=("Arial", 10), height=2, width=12, command=self.delete_file, state=tk.DISABLED)
-        self.delete_button.pack(side=tk.LEFT, padx=2)
+        self.delete_button = create_themed_button(button_frame, text="删除文件", width=12, command=self.delete_file, state=tk.DISABLED)
+        self.delete_button.pack(side=tk.LEFT, padx=action_button_spacing)
         
-        # Prompt 5: 返回上级按钮（仅在 notes 分类显示）
-        self.back_button = tk.Button(top, text="返回上级", font=("Arial", 10), height=2, width=12, command=self.go_back_notes)
+        # 返回上级按钮（仅在 notes 分类显示）- 使用主题化按钮和网格对齐间距
+        back_button_spacing = get_component_spacing("panel")
+        self.back_button = create_themed_button(top, text="返回上级", width=12, command=self.go_back_notes)
         # 初始不显示
 
-        # 文件管理区域 - 改进布局和间距
+        # 文件管理区域 - 改进布局和间距，使用网格对齐
         self.file_frame = tk.Frame(right)
         self.file_frame.pack(fill=tk.BOTH, expand=True)
 
-        # 左侧文件列表 - 优化间距和字体
+        # 左侧文件列表 - 优化间距和字体，使用网格对齐
+        file_list_spacing = get_component_spacing("content")
         file_list_frame = tk.Frame(self.file_frame)
-        file_list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 10))
+        file_list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, file_list_spacing))
 
-        self.file_list = tk.Listbox(file_list_frame, width=30, font=("Arial", 10))
+        self.file_list = create_enhanced_listbox(file_list_frame, width=30, 
+                                               font=theme.typography.get_font_tuple(theme.typography.size_medium))
         self.file_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.file_list.bind("<Double-Button-1>", self.open_selected_file)
         self.file_list.bind("<<ListboxSelect>>", self.on_file_select)
@@ -123,30 +175,44 @@ class App:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.file_list.config(yscrollcommand=scrollbar.set)
 
-        # 右侧内容查看器 - 改进标题和布局
+        # 右侧内容查看器 - 改进标题和布局，使用网格对齐间距
         content_frame = tk.Frame(self.file_frame)
         content_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        content_label = tk.Label(content_frame, text="文件内容", font=("Arial", 12, "bold"))
-        content_label.pack(anchor=tk.W, pady=(0, 8))
+        content_title_spacing = get_grid_aligned_spacing(8)
+        content_label = tk.Label(content_frame, text="文件内容", 
+                               font=theme.typography.get_font_tuple(theme.typography.size_large, theme.typography.weight_bold))
+        content_label.pack(anchor=tk.W, pady=(0, content_title_spacing))
 
-        # 文本显示区域 - 改进字体和背景
-        self.text_frame = tk.Frame(content_frame)
+        # 内容查看器容器 - 使用主题化样式和改进的边框
+        content_viewer_frame = tk.Frame(content_frame)
+        theme_manager.apply_theme_to_widget(content_viewer_frame, "frame", "content_viewer")
+        content_viewer_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 文本显示区域 - 改进字体、背景和行间距，使用主题颜色
+        self.text_frame = tk.Frame(content_viewer_frame)
         self.text_frame.pack(fill=tk.BOTH, expand=True)
 
+        # 使用网格对齐的内边距和改进的文本样式
+        text_padding = get_grid_aligned_spacing(12)  # 增加内边距以提升可读性
         self.content_text = tk.Text(self.text_frame, wrap=tk.WORD, state=tk.DISABLED, 
-                                   font=("Consolas", 11), bg="#f8f8f8", relief=tk.SUNKEN, bd=1)
+                                   padx=text_padding, pady=text_padding)
+        # 应用主题样式
+        theme_manager.apply_theme_to_widget(self.content_text, "text", "normal")
+        # 重新设置内边距，确保不被主题覆盖
+        self.content_text.config(padx=text_padding, pady=text_padding)
         self.content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         content_scrollbar = tk.Scrollbar(self.text_frame, command=self.content_text.yview)
         content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.content_text.config(yscrollcommand=content_scrollbar.set)
 
-        # 图片显示区域（初始隐藏）- 改进样式
-        self.image_frame = tk.Frame(content_frame)
-        self.image_label = tk.Label(self.image_frame, text="选择地图文件查看", 
-                                   bg="#f0f0f0", relief=tk.SUNKEN, bd=1, font=("Arial", 11))
-        self.image_label.pack(fill=tk.BOTH, expand=True)
+        # 图片显示区域（初始隐藏）- 改进样式，使用主题颜色和一致的边框
+        self.image_frame = tk.Frame(content_viewer_frame)
+        self.image_label = tk.Label(self.image_frame, text="选择地图文件查看")
+        # 应用主题样式
+        theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
+        self.image_label.pack(fill=tk.BOTH, expand=True, padx=text_padding, pady=text_padding)
 
     def load_campaigns(self):
         self.campaign_list.delete(0, tk.END)
@@ -155,25 +221,13 @@ class App:
                 self.campaign_list.insert(tk.END, name)
 
     def create_campaign(self):
-        # 创建自定义对话框
-        dialog = tk.Toplevel(self.root)
-        dialog.title("新建跑团")
-        dialog.geometry("450x180")
-        dialog.transient(self.root)
-        dialog.grab_set()
+        # 创建主题化对话框
+        dialog = create_themed_dialog(self.root, "新建跑团", "450x180")
         
-        # 居中显示
-        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
-        
-        # 添加内边距的主框架
-        main_frame = tk.Frame(dialog)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        tk.Label(main_frame, text="请输入跑团名称:", font=("Arial", 11)).pack(pady=(0, 15))
-        
-        entry = tk.Entry(main_frame, width=35, font=("Arial", 12), relief=tk.SUNKEN, bd=2)
-        entry.pack(pady=(0, 20))
-        entry.focus()
+        # 创建主题化对话框内容
+        main_frame, entry, ok_button, cancel_button = create_themed_dialog_content(
+            dialog, "请输入跑团名称:", 35
+        )
         
         result = {"name": None}
         
@@ -184,13 +238,9 @@ class App:
         def on_cancel():
             dialog.destroy()
         
-        button_frame = tk.Frame(main_frame)
-        button_frame.pack()
-        
-        tk.Button(button_frame, text="确定", command=on_ok, width=12, height=2, 
-                 font=("Arial", 10)).pack(side=tk.LEFT, padx=10)
-        tk.Button(button_frame, text="取消", command=on_cancel, width=12, height=2,
-                 font=("Arial", 10)).pack(side=tk.LEFT, padx=10)
+        # 配置按钮命令
+        ok_button.config(command=on_ok)
+        cancel_button.config(command=on_cancel)
         
         # 绑定回车键
         entry.bind("<Return>", lambda e: on_ok())
@@ -202,7 +252,7 @@ class App:
             return
         path = os.path.join(DATA_DIR, name)
         if os.path.exists(path):
-            messagebox.showerror("错误", "跑团已存在")
+            show_themed_error(self.root, "错误", "跑团已存在")
             return
 
         os.makedirs(path)
@@ -217,7 +267,7 @@ class App:
             return
         name = self.campaign_list.get(sel[0])
         path = os.path.join(DATA_DIR, name)
-        if messagebox.askyesno("确认", f"确定删除跑团【{name}】？"):
+        if ask_themed_yesno(self.root, "确认", f"确定删除跑团【{name}】？"):
             shutil.rmtree(path)
             self.current_campaign = None
             self.clear_categories()
@@ -239,29 +289,30 @@ class App:
 
     def show_categories(self):
         self.clear_categories()
+        theme_manager = get_theme_manager()
+        from layout_system import get_component_spacing
+        
+        # 获取分类按钮间距
+        category_button_spacing = get_component_spacing("category_button")
+        
         for name in CATEGORIES:
-            btn = tk.Button(
+            btn = create_themed_button(
                 self.category_frame,
                 text=name,
-                command=lambda n=name: self.select_category(n),
-                relief=tk.RAISED,
-                font=("Arial", 10),
-                padx=15,
-                pady=5
+                command=lambda n=name: self.select_category(n)
             )
-            btn.pack(side=tk.LEFT, padx=2)
+            btn.pack(side=tk.LEFT, padx=category_button_spacing)
             self.category_buttons[name] = btn
+        
+        # 为分类按钮添加增强的交互反馈
+        self.category_handlers = enhance_category_button_feedback(self.category_buttons)
 
     def select_category(self, name):
-        # 重置所有按钮状态
-        for btn in self.category_buttons.values():
-            btn.config(relief=tk.RAISED)
-        
-        # 设置当前按钮为按下状态
-        if name in self.category_buttons:
-            self.category_buttons[name].config(relief=tk.SUNKEN)
-        
         self.current_category = CATEGORIES[name]
+        
+        # 更新分类按钮的激活状态
+        if self.category_handlers:
+            update_category_button_states(self.category_handlers, name)
         
         # Prompt 5: 重置 notes 路径
         if self.current_category == "notes":
@@ -280,6 +331,84 @@ class App:
         self.update_back_button()
         
         self.load_files()
+    
+    def _apply_enhanced_feedback(self):
+        """为整个应用添加增强的交互反馈"""
+        # 为根窗口的所有控件添加交互反馈
+        apply_enhanced_interaction_feedback(self.root)
+        
+        # 确保所有现有的按钮都有正确的交互反馈
+        self._ensure_button_feedback()
+    
+    def _ensure_button_feedback(self):
+        """确保所有按钮都有正确的交互反馈"""
+        # 这个方法会在UI构建完成后调用，确保所有按钮都有交互反馈
+        # 由于apply_enhanced_interaction_feedback已经递归处理了所有控件，
+        # 这里主要是作为备用确保机制
+        pass
+    
+    def _apply_visual_enhancements(self):
+        """应用视觉元素优化 - 添加微妙的视觉增强"""
+        # 简化版视觉增强，直接在这里实现
+        theme_manager = get_theme_manager()
+        theme = theme_manager.get_current_theme()
+        
+        # 确保主窗口背景色正确
+        if hasattr(self, 'root'):
+            self.root.configure(bg=theme.colors.primary_bg)
+        
+        # 增强内容查看器的边界
+        if hasattr(self, 'content_text'):
+            try:
+                self.content_text.configure(
+                    relief=tk.SUNKEN,
+                    bd=2,
+                    highlightthickness=1,
+                    highlightcolor=theme.colors.border_color,
+                    highlightbackground=theme.colors.border_color
+                )
+            except tk.TclError:
+                pass
+        
+        # 增强图片显示区域的边界
+        if hasattr(self, 'image_label'):
+            try:
+                self.image_label.configure(
+                    relief=tk.SUNKEN,
+                    bd=2,
+                    highlightthickness=1,
+                    highlightcolor=theme.colors.border_color,
+                    highlightbackground=theme.colors.border_color
+                )
+            except tk.TclError:
+                pass
+
+    
+    def _enhance_visual_consistency(self):
+        """增强视觉一致性 - 确保所有元素遵循统一的视觉语言"""
+        # 简化版视觉一致性增强，直接在这里实现
+        theme_manager = get_theme_manager()
+        theme = theme_manager.get_current_theme()
+        
+        def apply_consistent_theming(widget):
+            try:
+                widget_class = widget.__class__.__name__
+                
+                if widget_class == "Frame":
+                    widget.configure(bg=theme.colors.primary_bg)
+                elif widget_class == "Label":
+                    widget.configure(
+                        bg=theme.colors.primary_bg,
+                        fg=theme.colors.text_primary
+                    )
+                
+                for child in widget.winfo_children():
+                    apply_consistent_theming(child)
+            except tk.TclError:
+                pass
+        
+        if hasattr(self, 'root'):
+            apply_consistent_theming(self.root)
 
     def load_files(self):
         """Prompt 3: 文件列表按文件名升序排序
@@ -355,25 +484,13 @@ class App:
         if not self.current_campaign or not self.current_category:
             return
         
-        # 创建一个自定义对话框 - 改进样式
-        dialog = tk.Toplevel(self.root)
-        dialog.title("新建文件")
-        dialog.geometry("450x180")
-        dialog.transient(self.root)
-        dialog.grab_set()
+        # 创建主题化对话框
+        dialog = create_themed_dialog(self.root, "新建文件", "450x180")
         
-        # 居中显示
-        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
-        
-        # 添加内边距的主框架
-        main_frame = tk.Frame(dialog)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        tk.Label(main_frame, text="请输入文件名（不需要扩展名）:", font=("Arial", 11)).pack(pady=(0, 15))
-        
-        entry = tk.Entry(main_frame, width=35, font=("Arial", 12), relief=tk.SUNKEN, bd=2)
-        entry.pack(pady=(0, 20))
-        entry.focus()
+        # 创建主题化对话框内容
+        main_frame, entry, ok_button, cancel_button = create_themed_dialog_content(
+            dialog, "请输入文件名（不需要扩展名）:", 35
+        )
         
         result = {"filename": None}
         
@@ -384,13 +501,9 @@ class App:
         def on_cancel():
             dialog.destroy()
         
-        button_frame = tk.Frame(main_frame)
-        button_frame.pack()
-        
-        tk.Button(button_frame, text="确定", command=on_ok, width=12, height=2, 
-                 font=("Arial", 10)).pack(side=tk.LEFT, padx=10)
-        tk.Button(button_frame, text="取消", command=on_cancel, width=12, height=2,
-                 font=("Arial", 10)).pack(side=tk.LEFT, padx=10)
+        # 配置按钮命令
+        ok_button.config(command=on_ok)
+        cancel_button.config(command=on_cancel)
         
         # 绑定回车键
         entry.bind("<Return>", lambda e: on_ok())
@@ -404,7 +517,7 @@ class App:
         # Prompt 9: 文件名合法性检查
         for char in INVALID_FILENAME_CHARS:
             if char in filename:
-                messagebox.showerror("错误", f"文件名不能包含以下字符: {INVALID_FILENAME_CHARS}")
+                show_themed_error(self.root, "错误", f"文件名不能包含以下字符: {INVALID_FILENAME_CHARS}")
                 return
         
         # 添加.txt扩展名
@@ -414,7 +527,7 @@ class App:
         file_path = os.path.join(target_dir, filename)
         
         if os.path.exists(file_path):
-            messagebox.showerror("错误", "文件已存在")
+            show_themed_error(self.root, "错误", "文件已存在")
             return
         
         # 获取模板内容并创建文件
@@ -513,8 +626,16 @@ class App:
             photo = ImageTk.PhotoImage(img)
             self.image_label.config(image=photo, text="")
             self.image_label.image = photo
+            
+            # 确保图片标签保持主题样式
+            theme_manager = get_theme_manager()
+            theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
+            
         except Exception as e:
             self.image_label.config(image="", text=f"无法显示图片: {str(e)}")
+            # 重新应用主题样式
+            theme_manager = get_theme_manager()
+            theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
 
 
 
@@ -528,8 +649,10 @@ class App:
         self.content_text.delete(1.0, tk.END)
         self.content_text.config(state=tk.DISABLED)
         
-        # 清除图片
+        # 清除图片并重新应用主题样式
         self.image_label.config(image="", text="选择地图文件查看")
+        theme_manager = get_theme_manager()
+        theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
 
     def open_selected_file(self, event):
         """Prompt 5: 双击文件打开，notes 分类双击文件夹进入"""
@@ -577,9 +700,12 @@ class App:
     
     def update_back_button(self):
         """Prompt 5: 更新返回上级按钮的显示状态"""
+        from layout_system import get_component_spacing
+        
         if self.current_category == "notes" and self.current_notes_path:
-            # 在 notes 分类且不在根目录时显示
-            self.back_button.pack(side=tk.RIGHT, padx=(0, 5))
+            # 在 notes 分类且不在根目录时显示，使用网格对齐的间距
+            back_button_spacing = get_component_spacing("panel")
+            self.back_button.pack(side=tk.RIGHT, padx=(0, back_button_spacing))
         else:
             # 其他情况隐藏
             self.back_button.pack_forget()
@@ -626,7 +752,7 @@ class App:
         """删除选中的文件（仅从界面隐藏，不删除实际文件）"""
         sel = self.file_list.curselection()
         if not sel:
-            messagebox.showinfo("提示", "请先选择要删除的文件")
+            show_themed_info(self.root, "提示", "请先选择要删除的文件")
             return
         
         display_name = self.file_list.get(sel[0])
@@ -634,7 +760,7 @@ class App:
         
         # 确认删除
         file_type = "文件夹" if display_name.startswith("[DIR] ") else "文件"
-        if not messagebox.askyesno("确认删除", f"确定要删除{file_type}【{filename}】吗？\n\n注意：这只会从软件中隐藏，不会删除实际文件。"):
+        if not ask_themed_yesno(self.root, "确认删除", f"确定要删除{file_type}【{filename}】吗？\n\n注意：这只会从软件中隐藏，不会删除实际文件。"):
             return
         
         # 添加到隐藏列表
@@ -649,7 +775,7 @@ class App:
         self.load_files()
         self.clear_content_viewer()
         
-        messagebox.showinfo("删除成功", f"{file_type}【{filename}】已从软件中删除\n\n实际文件仍保存在磁盘上")
+        show_themed_info(self.root, "删除成功", f"{file_type}【{filename}】已从软件中删除\n\n实际文件仍保存在磁盘上")
 
 
 if __name__ == "__main__":
