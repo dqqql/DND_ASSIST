@@ -74,6 +74,10 @@ class App:
         self.category_frame = tk.Frame(top)
         self.category_frame.pack(side=tk.LEFT, padx=(0, 10))
 
+        # 操作按钮放在右上角
+        self.action_button = tk.Button(top, text="请选择分类", font=("Arial", 10), height=2, width=12, state=tk.DISABLED)
+        self.action_button.pack(side=tk.RIGHT)
+
         # 文件管理区域 - 改进布局和间距
         self.file_frame = tk.Frame(right)
         self.file_frame.pack(fill=tk.BOTH, expand=True)
@@ -116,16 +120,6 @@ class App:
                                    bg="#f0f0f0", relief=tk.SUNKEN, bd=1, font=("Arial", 11))
         self.image_label.pack(fill=tk.BOTH, expand=True)
 
-        # 底部操作区域 - 改进间距和按钮样式
-        bottom = tk.Frame(right)
-        bottom.pack(fill=tk.X, pady=(10, 0))
-
-        self.action_button = tk.Button(bottom, text="", font=("Arial", 10), height=2, width=12)
-        self.action_button.pack(side=tk.LEFT)
-
-        self.preview_label = tk.Label(bottom, font=("Arial", 10))
-        self.preview_label.pack(side=tk.RIGHT)
-
     def load_campaigns(self):
         self.campaign_list.delete(0, tk.END)
         for name in os.listdir(DATA_DIR):
@@ -133,7 +127,49 @@ class App:
                 self.campaign_list.insert(tk.END, name)
 
     def create_campaign(self):
-        name = tk.simpledialog.askstring("新建跑团", "请输入跑团名称")
+        # 创建自定义对话框
+        dialog = tk.Toplevel(self.root)
+        dialog.title("新建跑团")
+        dialog.geometry("450x180")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
+        
+        # 添加内边距的主框架
+        main_frame = tk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="请输入跑团名称:", font=("Arial", 11)).pack(pady=(0, 15))
+        
+        entry = tk.Entry(main_frame, width=35, font=("Arial", 12), relief=tk.SUNKEN, bd=2)
+        entry.pack(pady=(0, 20))
+        entry.focus()
+        
+        result = {"name": None}
+        
+        def on_ok():
+            result["name"] = entry.get().strip()
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack()
+        
+        tk.Button(button_frame, text="确定", command=on_ok, width=12, height=2, 
+                 font=("Arial", 10)).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="取消", command=on_cancel, width=12, height=2,
+                 font=("Arial", 10)).pack(side=tk.LEFT, padx=10)
+        
+        # 绑定回车键
+        entry.bind("<Return>", lambda e: on_ok())
+        
+        dialog.wait_window()
+        
+        name = result["name"]
         if not name:
             return
         path = os.path.join(DATA_DIR, name)
@@ -200,15 +236,14 @@ class App:
         
         # 根据分类设置操作按钮
         if self.current_category == "maps":
-            self.action_button.config(text="导入文件", command=self.import_file)
+            self.action_button.config(text="导入文件", command=self.import_file, state=tk.NORMAL)
         else:
-            self.action_button.config(text="新建文件", command=self.create_file)
+            self.action_button.config(text="新建文件", command=self.create_file, state=tk.NORMAL)
         
         self.load_files()
 
     def load_files(self):
         self.file_list.delete(0, tk.END)
-        self.preview_label.config(image="", text="")
         self.clear_content_viewer()
         if not self.current_campaign or not self.current_category:
             return
@@ -338,9 +373,6 @@ class App:
             self.content_text.delete(1.0, tk.END)
             self.content_text.insert(1.0, content)
             self.content_text.config(state=tk.DISABLED)
-            
-            # 清除底部预览
-            self.preview_label.config(image="", text="")
         except Exception as e:
             self.content_text.config(state=tk.NORMAL)
             self.content_text.delete(1.0, tk.END)
@@ -363,9 +395,6 @@ class App:
             photo = ImageTk.PhotoImage(img)
             self.image_label.config(image=photo, text="")
             self.image_label.image = photo
-            
-            # 清除底部预览
-            self.preview_label.config(image="", text="")
         except Exception as e:
             self.image_label.config(image="", text=f"无法显示图片: {str(e)}")
 
@@ -383,9 +412,6 @@ class App:
         
         # 清除图片
         self.image_label.config(image="", text="选择地图文件查看")
-        
-        # 清除底部预览
-        self.preview_label.config(image="", text="")
 
     def open_selected_file(self, event):
         sel = self.file_list.curselection()
