@@ -829,10 +829,11 @@ class App:
         """构建剧情显示文本"""
         lines = []
         
-        # 显示标题 - 简洁的格式
-        title = story_data.get("title", "未命名剧情")
-        lines.append(f"剧情: {title}")
-        lines.append("")
+        # 显示标题 - 简洁的格式，跳过默认标题
+        title = story_data.get("title", "").strip()
+        if title and title != "新剧情":
+            lines.append(f"剧情: {title}")
+            lines.append("")
         
         # 获取所有节点
         nodes = story_data.get("nodes", [])
@@ -856,7 +857,13 @@ class App:
         # 按ID排序主线节点
         main_nodes.sort(key=lambda x: x.get("id", ""))
         
-        for i, main_node in enumerate(main_nodes):
+        # 过滤掉空节点或默认节点
+        filtered_main_nodes = []
+        for node in main_nodes:
+            if self._is_meaningful_node(node):
+                filtered_main_nodes.append(node)
+        
+        for i, main_node in enumerate(filtered_main_nodes):
             title = main_node.get("title", "未命名")
             content = main_node.get("content", "")
             
@@ -892,14 +899,34 @@ class App:
             # 显示下一个主线节点
             next_id = main_node.get("next")
             if next_id and next_id in node_map:
-                next_title = node_map[next_id].get("title", next_id)
-                lines.append("")
-                lines.append("  ↓")
-                lines.append(f"  {next_title}")
+                next_node = node_map[next_id]
+                if self._is_meaningful_node(next_node):
+                    next_title = next_node.get("title", next_id)
+                    lines.append("")
+                    lines.append("  ↓")
+                    lines.append(f"  {next_title}")
             
             lines.append("")
         
         return lines
+    
+    def _is_meaningful_node(self, node):
+        """判断节点是否有意义（不是空节点或默认节点）"""
+        if not node:
+            return False
+        
+        title = node.get("title", "").strip()
+        content = node.get("content", "").strip()
+        
+        # 跳过空标题或默认标题
+        if not title or title in ["新节点", "未命名节点", "未命名"]:
+            return False
+        
+        # 跳过没有内容且没有分支的节点
+        if not content and not node.get("branches"):
+            return False
+        
+        return True
     
     def _trace_branch_path(self, start_id, branch_nodes, exit_id, show_title=True):
         """追踪分支路径"""

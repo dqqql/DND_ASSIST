@@ -2,11 +2,16 @@ import json
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
+import os
 
 TEMPLATE = {
     "title": "新剧情",
     "nodes": []
 }
+
+# 数据目录路径
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data", "campaigns")
 
 
 class StoryEditor:
@@ -17,6 +22,7 @@ class StoryEditor:
         self.data = TEMPLATE.copy()
         self.current_node = None
         self.file_path = None
+        self.campaigns = self.get_available_campaigns()
 
         self.build_ui()
 
@@ -104,6 +110,7 @@ class StoryEditor:
         ttk.Button(bottom, text="新建剧情", command=self.new_story).pack(side=tk.LEFT)
         ttk.Button(bottom, text="打开剧情", command=self.load_story).pack(side=tk.LEFT)
         ttk.Button(bottom, text="保存剧情", command=self.save_story).pack(side=tk.RIGHT)
+        ttk.Button(bottom, text="保存到跑团", command=self.save_to_campaign).pack(side=tk.RIGHT, padx=(0, 5))
 
     # ---------- 通用 ----------
 
@@ -201,6 +208,148 @@ class StoryEditor:
         self.refresh_branches()
 
     # ---------- 文件 ----------
+
+    def get_available_campaigns(self):
+        """获取可用的跑团列表"""
+        campaigns = []
+        if os.path.exists(DATA_DIR):
+            for name in os.listdir(DATA_DIR):
+                campaign_path = os.path.join(DATA_DIR, name)
+                if os.path.isdir(campaign_path):
+                    # 检查是否有notes目录
+                    notes_path = os.path.join(campaign_path, "notes")
+                    if os.path.exists(notes_path):
+                        campaigns.append(name)
+        return campaigns
+
+    def refresh_campaigns(self):
+        """刷新跑团列表"""
+        self.campaigns = self.get_available_campaigns()
+
+    def save_to_campaign(self):
+        """保存剧情到指定跑团"""
+        if not self.data.get("nodes"):
+            messagebox.showwarning("警告", "剧情为空，请先添加节点")
+            return
+        
+        # 刷新跑团列表
+        self.refresh_campaigns()
+        
+        if not self.campaigns:
+            messagebox.showerror("错误", "没有找到可用的跑团\n请先在主程序中创建跑团")
+            return
+        
+        # 创建选择跑团的对话框
+        dialog = tk.Toplevel(self.root)
+        dialog.title("选择跑团")
+        dialog.geometry("400x300")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        result = {"campaign": None, "filename": None}
+        
+        # 主框架
+        main_frame = ttk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 跑团选择
+        ttk.Label(main_frame, text="选择跑团:").pack(anchor="w")
+        campaign_var = tk.StringVar()
+        campaign_combo = ttk.Combobox(main_frame, textvariable=campaign_var, 
+                                     values=self.campaigns, state="readonly")
+        campaign_combo.pack(fill=tk.X, pady=(5, 15))
+        if self.campaigns:
+            campaign_combo.set(self.campaigns[0])
+        
+        # 文件名输入
+        ttk.Label(main_frame, text="文件名:").pack(anchor="w")
+        filename_var = tk.StringVar()
+        filename_var.set(self.data.get("title", "新剧情"))
+        filename_entry = ttk.Entry(main_frame, textvariable=filename_var)
+        filename_entry.pack(fill=tk.X, pady=(5, 15))
+        
+        # 提示信息
+        info_label = ttk.Label(main_frame, text="文件将保存为 .json 格式", 
+                              foreground="gray")
+        info_label.pack(anchor="w", pady=(0, 15))
+        
+        # 按钮框架
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        def on_save():
+            campaign = campaign_var.get()
+            filename = filename_var.get().strip()
+            
+            if not campaign:
+                messagebox.showerror("错误", "请选择跑团")
+                return
+            
+            if not filename:
+                messagebox.showerror("错误", "请输入文件名")
+                return
+            
+            # 检查文件名合法性
+            invalid_chars = r'/\:*?"<>|'
+            for char in invalid_chars:
+                if char in filename:
+                    messagebox.showerror("错误", f"文件名不能包含以下字符: {invalid_chars}")
+                    return
+            
+            result["campaign"] = campaign
+            result["filename"] = filename
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        ttk.Button(button_frame, text="保存", command=on_save).pack(side=tk.RIGHT)
+        ttk.Button(button_frame, text="取消", command=on_cancel).pack(side=tk.RIGHT, padx=(0, 10))
+        
+        # 绑定回车键
+        filename_entry.bind("<Return>", lambda e: on_save())
+        
+        dialog.wait_window()
+        
+        # 执行保存
+        if result["campaign"] and result["filename"]:
+            self._save_to_campaign_path(result["campaign"], result["filename"])
+
+    def _save_to_campaign_path(self, campaign, filename):
+        """实际执行保存到跑团目录"""
+        try:
+            # 确保文件名以.json结尾
+            if not filename.endswith('.json'):
+                filename += '.json'
+            
+            # 构建保存路径
+            campaign_notes_dir = os.path.join(DATA_DIR, campaign, "notes")
+            if not os.path.exists(campaign_notes_dir):
+                os.makedirs(campaign_notes_dir)
+            
+            save_path = os.path.join(campaign_notes_dir, filename)
+            
+            # 检查文件是否已存在
+            if os.path.exists(save_path):
+                if not messagebox.askyesno("文件已存在", 
+                                         f"文件 {filename} 已存在，是否覆盖？"):
+                    return
+            
+            # 保存文件
+            with open(save_path, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=2)
+            
+            messagebox.showinfo("保存成功", 
+                              f"剧情已保存到跑团【{campaign}】\n文件路径: {save_path}")
+            
+        except Exception as e:
+            messagebox.showerror("保存失败", f"保存文件时发生错误:\n{str(e)}")
 
     def add_node(self):
         self.data["nodes"].append({
