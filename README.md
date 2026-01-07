@@ -6,6 +6,13 @@
 ![Python](https://img.shields.io/badge/Python-3.7+-green?style=for-the-badge&logo=python)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
+<img width="1502" height="940" alt="image" src="https://github.com/user-attachments/assets/d0dc5d67-34ba-4990-9a39-2ec2de0c7afa" />
+
+<img width="1465" height="852" alt="image" src="https://github.com/user-attachments/assets/753b375c-15e0-4278-9743-ad44f36d649c" />
+
+<img width="762" height="1045" alt="image" src="https://github.com/user-attachments/assets/67518806-ae80-44ba-9690-58feb6bf7bc2" />
+
+
 **一个现代化的 DND 跑团资料管理工具**
 
 集成数据管理 • 剧情可视化 • 现代化界面
@@ -324,5 +331,6 @@ python main.py
 **⭐ 如果这个项目对你有帮助，请给个星标支持！**
 
 Made with ❤️ for D&D enthusiasts
+
 
 </div>
