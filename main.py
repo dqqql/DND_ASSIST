@@ -1,7 +1,7 @@
 import os
 import shutil
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 import subprocess
 import sys
@@ -13,7 +13,7 @@ CATEGORIES = {
     "人物卡": "characters",
     "怪物卡": "monsters",
     "地图": "maps",
-    "笔记": "notes"
+    "剧情": "notes"
 }
 
 
@@ -40,6 +40,7 @@ class App:
 
         self.current_campaign = None
         self.current_category = None
+        self.category_buttons = {}  # 存储分类按钮
 
         self.build_ui()
         self.load_campaigns()
@@ -80,7 +81,8 @@ class App:
         bottom = tk.Frame(right)
         bottom.pack(fill=tk.X)
 
-        tk.Button(bottom, text="导入文件", command=self.import_file).pack(side=tk.LEFT)
+        self.action_button = tk.Button(bottom, text="")
+        self.action_button.pack(side=tk.LEFT)
 
         self.preview_label = tk.Label(bottom)
         self.preview_label.pack(side=tk.RIGHT)
@@ -129,6 +131,7 @@ class App:
     def clear_categories(self):
         for w in self.category_frame.winfo_children():
             w.destroy()
+        self.category_buttons.clear()
 
     def show_categories(self):
         self.clear_categories()
@@ -136,12 +139,29 @@ class App:
             btn = tk.Button(
                 self.category_frame,
                 text=name,
-                command=lambda n=name: self.select_category(n)
+                command=lambda n=name: self.select_category(n),
+                relief=tk.RAISED
             )
             btn.pack(side=tk.LEFT)
+            self.category_buttons[name] = btn
 
     def select_category(self, name):
+        # 重置所有按钮状态
+        for btn in self.category_buttons.values():
+            btn.config(relief=tk.RAISED)
+        
+        # 设置当前按钮为按下状态
+        if name in self.category_buttons:
+            self.category_buttons[name].config(relief=tk.SUNKEN)
+        
         self.current_category = CATEGORIES[name]
+        
+        # 根据分类设置操作按钮
+        if self.current_category == "maps":
+            self.action_button.config(text="导入文件", command=self.import_file)
+        else:
+            self.action_button.config(text="新建文件", command=self.create_file)
+        
         self.load_files()
 
     def load_files(self):
@@ -163,6 +183,67 @@ class App:
         for f in files:
             shutil.copy(f, target_dir)
         self.load_files()
+
+    def create_file(self):
+        if not self.current_campaign or not self.current_category:
+            return
+        
+        # 创建一个自定义对话框
+        dialog = tk.Toplevel(self.root)
+        dialog.title("新建文件")
+        dialog.geometry("400x150")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
+        
+        tk.Label(dialog, text="请输入文件名（不需要扩展名）:").pack(pady=10)
+        
+        entry = tk.Entry(dialog, width=40, font=("Arial", 12))
+        entry.pack(pady=10)
+        entry.focus()
+        
+        result = {"filename": None}
+        
+        def on_ok():
+            result["filename"] = entry.get().strip()
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(pady=10)
+        
+        tk.Button(button_frame, text="确定", command=on_ok, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="取消", command=on_cancel, width=10).pack(side=tk.LEFT, padx=5)
+        
+        # 绑定回车键
+        entry.bind("<Return>", lambda e: on_ok())
+        
+        dialog.wait_window()
+        
+        filename = result["filename"]
+        if not filename:
+            return
+        
+        # 添加.txt扩展名
+        filename = filename + ".txt"
+        target_dir = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
+        file_path = os.path.join(target_dir, filename)
+        
+        if os.path.exists(file_path):
+            messagebox.showerror("错误", "文件已存在")
+            return
+        
+        # 创建空的文本文件
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write("")
+        
+        self.load_files()
+        # 创建后自动打开文件
+        open_file_with_system(file_path)
 
     def open_selected_file(self, event):
         sel = self.file_list.curselection()
