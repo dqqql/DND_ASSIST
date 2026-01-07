@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>预览测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>DND 剧情预览测试</h1>
+    
+    <div id="status">正在加载...</div>
+    
+    <h2>文件路径测试</h2>
+    <div id="paths"></div>
+    
+    <h2>JSON 数据</h2>
+    <pre id="json-content"></pre>
+    
+    <h2>SVG 图形</h2>
+    <div id="svg-content"></div>
+
+    <script>
+        // 获取URL参数
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                campaign: params.get('campaign') || '失落的矿坑',
+                story: params.get('story') || '失落的矿坑'
+            };
+        }
+
+        // 构建文件路径
+        function buildFilePaths() {
+            const { campaign, story } = getUrlParams();
+            return {
+                jsonPath: `../../data/campaigns/${campaign}/notes/${story}.json`,
+                svgPath: `../../data/campaigns/${campaign}/notes/${story}.svg`
+            };
+        }
+
+        // 测试文件加载
+        async function testFileLoading() {
+            const { campaign, story } = getUrlParams();
+            const { jsonPath, svgPath } = buildFilePaths();
+            
+            document.getElementById('status').innerHTML = `
+                <div class="info">测试跑团: ${campaign}</div>
+                <div class="info">测试剧情: ${story}</div>
+            `;
+            
+            document.getElementById('paths').innerHTML = `
+                <div>JSON路径: ${jsonPath}</div>
+                <div>SVG路径: ${svgPath}</div>
+            `;
+
+            // 测试JSON加载
+            try {
+                const jsonResponse = await fetch(jsonPath);
+                if (!jsonResponse.ok) {
+                    throw new Error(`HTTP ${jsonResponse.status}: ${jsonResponse.statusText}`);
+                }
+                const jsonData = await jsonResponse.json();
+                document.getElementById('json-content').textContent = JSON.stringify(jsonData, null, 2);
+                console.log('JSON加载成功:', jsonData);
+            } catch (error) {
+                document.getElementById('json-content').innerHTML = `<span class="error">JSON加载失败: ${error.message}</span>`;
+                console.error('JSON加载失败:', error);
+            }
+
+            // 测试SVG加载
+            try {
+                const svgResponse = await fetch(svgPath);
+                if (!svgResponse.ok) {
+                    throw new Error(`HTTP ${svgResponse.status}: ${svgResponse.statusText}`);
+                }
+                const svgText = await svgResponse.text();
+                document.getElementById('svg-content').innerHTML = svgText;
+                console.log('SVG加载成功');
+            } catch (error) {
+                document.getElementById('svg-content').innerHTML = `<span class="error">SVG加载失败: ${error.message}</span>`;
+                console.error('SVG加载失败:', error);
+            }
+        }
+
+        // 页面加载完成后开始测试
+        document.addEventListener('DOMContentLoaded', testFileLoading);
+    </script>
+</body>
+</html>

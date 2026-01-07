@@ -10,7 +10,7 @@ TEMPLATE = {
 }
 
 # 数据目录路径
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BASE_DIR, "data", "campaigns")
 
 
@@ -917,8 +917,8 @@ class StoryEditor:
             with open(save_path, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
             
-            # 同时保存到output目录
-            self._save_to_output_dir(campaign, script, filename)
+            # 注释掉output目录保存功能，因为工具链现在直接从data/campaigns读取
+            # self._save_to_output_dir(campaign, script, filename)
             
             # 更新文件路径和状态
             self.file_path = save_path

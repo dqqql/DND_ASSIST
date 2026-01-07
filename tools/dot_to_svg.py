@@ -61,23 +61,18 @@ def convert_dot_to_svg(dot_path: Path, svg_path: Path):
 
 
 def find_dot_files():
-    """查找output目录下的所有DOT文件"""
+    """查找data/campaigns目录下的所有DOT文件"""
     base_dir = Path(__file__).parent.parent
-    output_dir = base_dir / "output"
+    campaigns_dir = base_dir / "data" / "campaigns"
     
     dot_files = []
-    if output_dir.exists():
-        for campaign_dir in output_dir.iterdir():
+    if campaigns_dir.exists():
+        for campaign_dir in campaigns_dir.iterdir():
             if campaign_dir.is_dir():
-                for script_dir in campaign_dir.iterdir():
-                    if script_dir.is_dir():
-                        # 新结构：output/跑团/剧本/文件.dot
-                        for dot_file in script_dir.glob("*.dot"):
-                            dot_files.append(dot_file)
-                    elif campaign_dir.name != "__pycache__":
-                        # 兼容旧结构：output/跑团/文件.dot
-                        for dot_file in campaign_dir.glob("*.dot"):
-                            dot_files.append(dot_file)
+                notes_dir = campaign_dir / "notes"
+                if notes_dir.exists():
+                    for dot_file in notes_dir.glob("*.dot"):
+                        dot_files.append(dot_file)
     
     return dot_files
 
@@ -89,15 +84,9 @@ def ask_user_confirmation(dot_files):
     for i, dot_file in enumerate(dot_files, 1):
         # 解析路径结构
         parts = dot_file.parts
-        if len(parts) >= 4 and parts[-4] == "output":
-            # 新结构：output/跑团/剧本/文件.dot
+        if len(parts) >= 4 and parts[-4] == "campaigns":
+            # 结构：data/campaigns/跑团/notes/文件.dot
             campaign = parts[-3]
-            script = parts[-2]
-            filename = parts[-1]
-            print(f"  {i}. {campaign}/{script}/{filename}")
-        elif len(parts) >= 3 and parts[-3] == "output":
-            # 旧结构：output/跑团/文件.dot
-            campaign = parts[-2]
             filename = parts[-1]
             print(f"  {i}. {campaign}/{filename}")
         else:
@@ -138,7 +127,7 @@ def process_dot_file(dot_path: Path):
 
 def main():
     if len(sys.argv) == 1:
-        # 无参数模式：处理output目录下的所有DOT文件
+        # 无参数模式：处理data/campaigns目录下的所有DOT文件
         dot_files = find_dot_files()
         if not dot_files:
             print("未找到任何DOT文件")
@@ -194,8 +183,8 @@ def main():
         
     else:
         print("用法：")
-        print("  python dot_to_svg.py                    # 转换output目录下的所有DOT文件（交互模式）")
-        print("  python dot_to_svg.py --auto             # 转换output目录下的所有DOT文件（自动模式）")
+        print("  python dot_to_svg.py                    # 转换data/campaigns目录下的所有DOT文件（交互模式）")
+        print("  python dot_to_svg.py --auto             # 转换data/campaigns目录下的所有DOT文件（自动模式）")
         print("  python dot_to_svg.py input.dot output.svg  # 转换指定文件")
         sys.exit(1)
 

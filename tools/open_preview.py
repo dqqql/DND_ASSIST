@@ -255,26 +255,20 @@ def open_preview(campaign_name=None, script_name=None, story_name=None):
 def list_available_stories():
     """列出可用的剧情文件"""
     base_dir = Path(__file__).parent.parent
-    output_dir = base_dir / "output"
+    campaigns_dir = base_dir / "data" / "campaigns"
     
-    if not output_dir.exists():
-        print("output目录不存在")
+    if not campaigns_dir.exists():
+        print("data/campaigns目录不存在")
         return []
     
     stories = []
-    for campaign_dir in output_dir.iterdir():
-        if campaign_dir.is_dir() and campaign_dir.name != "__pycache__":
-            for script_dir in campaign_dir.iterdir():
-                if script_dir.is_dir():
-                    # 新结构：output/跑团/剧本/文件.json
-                    for json_file in script_dir.glob("*.json"):
-                        story_name = json_file.stem
-                        stories.append((campaign_dir.name, script_dir.name, story_name))
-                else:
-                    # 兼容旧结构：output/跑团/文件.json
-                    for json_file in campaign_dir.glob("*.json"):
-                        story_name = json_file.stem
-                        stories.append((campaign_dir.name, None, story_name))
+    for campaign_dir in campaigns_dir.iterdir():
+        if campaign_dir.is_dir():
+            notes_dir = campaign_dir / "notes"
+            if notes_dir.exists():
+                for json_file in notes_dir.glob("*.json"):
+                    story_name = json_file.stem
+                    stories.append((campaign_dir.name, None, story_name))
     
     return stories
 
@@ -283,16 +277,10 @@ def find_story_files(campaign_name, script_name, story_name):
     """查找剧情文件路径"""
     base_dir = Path(__file__).parent.parent
     
-    if script_name:
-        # 新结构：output/跑团/剧本/文件
-        story_dir = base_dir / "output" / campaign_name / script_name
-        json_path = story_dir / f"{story_name}.json"
-        svg_path = story_dir / f"{story_name}.svg"
-    else:
-        # 旧结构：output/跑团/文件
-        story_dir = base_dir / "output" / campaign_name
-        json_path = story_dir / f"{story_name}.json"
-        svg_path = story_dir / f"{story_name}.svg"
+    # 新的文件结构：data/campaigns/跑团/notes/文件
+    story_dir = base_dir / "data" / "campaigns" / campaign_name / "notes"
+    json_path = story_dir / f"{story_name}.json"
+    svg_path = story_dir / f"{story_name}.svg"
     
     return json_path, svg_path
 

@@ -90,21 +90,18 @@ def generate_dot(story: dict) -> str:
 # --- 以下为原有的文件处理和 CLI 逻辑，保持不变 ---
 
 def find_json_files():
-    """查找output目录下的所有JSON文件"""
+    """查找data/campaigns目录下的所有JSON文件"""
     base_dir = Path(__file__).parent.parent
-    output_dir = base_dir / "output"
+    campaigns_dir = base_dir / "data" / "campaigns"
     
     json_files = []
-    if output_dir.exists():
-        for campaign_dir in output_dir.iterdir():
+    if campaigns_dir.exists():
+        for campaign_dir in campaigns_dir.iterdir():
             if campaign_dir.is_dir():
-                for script_dir in campaign_dir.iterdir():
-                    if script_dir.is_dir():
-                        for json_file in script_dir.glob("*.json"):
-                            json_files.append(json_file)
-                    elif campaign_dir.name != "__pycache__":
-                        for json_file in campaign_dir.glob("*.json"):
-                            json_files.append(json_file)
+                notes_dir = campaign_dir / "notes"
+                if notes_dir.exists():
+                    for json_file in notes_dir.glob("*.json"):
+                        json_files.append(json_file)
     return json_files
 
 def ask_user_confirmation(json_files):

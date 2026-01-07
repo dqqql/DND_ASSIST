@@ -7,9 +7,9 @@ let allEdges = [];
 function getUrlParams() {
   const params = new URLSearchParams(window.location.search);
   return {
-    campaign: params.get('campaign') || '矿坑',
+    campaign: params.get('campaign') || '失落的矿坑',
     script: params.get('script') || null,
-    story: params.get('story') || '森林古堡'
+    story: params.get('story') || '失落的矿坑'
   };
 }
 
@@ -17,19 +17,11 @@ function getUrlParams() {
 function buildFilePaths() {
   const { campaign, script, story } = getUrlParams();
   
-  if (script) {
-    // 新结构：output/跑团/剧本/文件
-    return {
-      jsonPath: `../../output/${campaign}/${script}/${story}.json`,
-      svgPath: `../../output/${campaign}/${script}/${story}.svg`
-    };
-  } else {
-    // 旧结构：output/跑团/文件
-    return {
-      jsonPath: `../../output/${campaign}/${story}.json`,
-      svgPath: `../../output/${campaign}/${story}.svg`
-    };
-  }
+  // 新的文件结构：data/campaigns/跑团/notes/文件
+  return {
+    jsonPath: `../../data/campaigns/${campaign}/notes/${story}.json`,
+    svgPath: `../../data/campaigns/${campaign}/notes/${story}.svg`
+  };
 }
 
 // 加载剧情数据和SVG

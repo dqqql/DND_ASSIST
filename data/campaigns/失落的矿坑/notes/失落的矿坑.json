@@ -1,0 +1,67 @@
+{
+  "title": "失落的矿坑",
+  "description": "一个关于废弃矿坑中隐藏秘密的冒险故事",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "main",
+      "title": "矿坑入口",
+      "content": "你们来到了传说中的失落矿坑入口。这里曾经是繁荣的矿场，但现在只剩下破败的建筑和诡异的寂静。入口处有两条路径。",
+      "next": "choice_01",
+      "branches": [
+        {
+          "choice": "走左边的主通道",
+          "entry": "left_path",
+          "exit": "spider_encounter"
+        },
+        {
+          "choice": "走右边的小径",
+          "entry": "right_path",
+          "exit": "skeleton_encounter"
+        }
+      ]
+    },
+    {
+      "id": "left_path",
+      "type": "branch",
+      "title": "主通道",
+      "content": "主通道宽阔但昏暗，墙壁上还能看到当年矿工留下的工具痕迹。空气中弥漫着潮湿和腐朽的味道。",
+      "next": "spider_encounter"
+    },
+    {
+      "id": "right_path",
+      "type": "branch",
+      "title": "小径",
+      "content": "小径狭窄崎岖，似乎是后来开凿的。地面上散落着一些骨头碎片，让人不安。",
+      "next": "skeleton_encounter"
+    },
+    {
+      "id": "spider_encounter",
+      "type": "main",
+      "title": "蜘蛛巢穴",
+      "content": "你们进入了一个宽阔的洞穴，天花板上挂满了蛛网。突然，几只巨大的矿坑蜘蛛从阴影中爬出！",
+      "next": "treasure_room"
+    },
+    {
+      "id": "skeleton_encounter",
+      "type": "main",
+      "title": "骷髅矿工",
+      "content": "在一个废弃的工作面前，几具骷髅矿工仍在机械地挥舞着镐头。它们注意到了你们的到来！",
+      "next": "treasure_room"
+    },
+    {
+      "id": "treasure_room",
+      "type": "main",
+      "title": "宝藏室",
+      "content": "经过战斗后，你们发现了矿坑深处的秘密宝藏室。这里存放着珍贵的矿石和古老的魔法物品。",
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "type": "main",
+      "title": "冒险结束",
+      "content": "你们成功探索了失落的矿坑，获得了丰厚的奖励。但这只是更大冒险的开始...",
+      "next": null
+    }
+  ]
+}

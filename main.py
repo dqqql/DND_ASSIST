@@ -8,15 +8,15 @@ import sys
 import json
 
 # 导入主题系统
-from theme_integration import (
+from src.ui.theme_integration import (
     integrate_theme_with_app, create_themed_dialog, create_themed_dialog_content,
     show_themed_info, show_themed_error, show_themed_warning, ask_themed_yesno
 )
-from theme_utils import (
+from src.ui.theme_utils import (
     create_themed_button, add_interaction_feedback, create_enhanced_listbox, add_list_interaction_feedback,
     apply_enhanced_interaction_feedback, enhance_category_button_feedback, update_category_button_states
 )
-from theme_system import get_theme_manager
+from src.ui.theme_system import get_theme_manager
 
 # ==================== 常量定义区域 ====================
 # Prompt 2: 所有路径和分类相关的常量集中在文件顶部
@@ -89,7 +89,7 @@ class App:
 
     def build_ui(self):
         # 获取布局管理器和主题管理器
-        from layout_system import get_layout_manager, get_component_spacing, get_grid_aligned_spacing
+        from src.ui.layout_system import get_layout_manager, get_component_spacing, get_grid_aligned_spacing
         layout_manager = get_layout_manager()
         theme_manager = get_theme_manager()
         theme = theme_manager.get_current_theme()
@@ -291,7 +291,7 @@ class App:
     def show_categories(self):
         self.clear_categories()
         theme_manager = get_theme_manager()
-        from layout_system import get_component_spacing
+        from src.ui.layout_system import get_component_spacing
         
         # 获取分类按钮间距
         category_button_spacing = get_component_spacing("category_button")
@@ -444,7 +444,9 @@ class App:
                 if os.path.isdir(item_path):
                     folders.append(item)
                 else:
-                    files.append(item)
+                    # 只显示 .txt 和 .json 文件，过滤掉 .dot 和 .svg 文件
+                    if item.lower().endswith(('.txt', '.json')):
+                        files.append(item)
             
             # Prompt 3: 排序
             folders.sort()
@@ -907,19 +909,16 @@ class App:
             filename = os.path.basename(json_file_path)
             filename_without_ext = os.path.splitext(filename)[0]
             
-            # 在output文件夹中搜索对应的SVG文件
-            output_base = os.path.join(BASE_DIR, "output", self.current_campaign)
+            # 在当前跑团的notes文件夹中查找对应的SVG文件
+            notes_dir = os.path.join(DATA_DIR, self.current_campaign, "notes")
             
-            if not os.path.exists(output_base):
+            if not os.path.exists(notes_dir):
                 return None
             
-            # 遍历所有子文件夹，查找匹配的SVG文件
-            for script_folder in os.listdir(output_base):
-                script_path = os.path.join(output_base, script_folder)
-                if os.path.isdir(script_path):
-                    svg_path = os.path.join(script_path, f"{filename_without_ext}.svg")
-                    if os.path.exists(svg_path):
-                        return svg_path
+            # 直接在notes目录中查找SVG文件
+            svg_path = os.path.join(notes_dir, f"{filename_without_ext}.svg")
+            if os.path.exists(svg_path):
+                return svg_path
             
             return None
         except Exception:
@@ -1039,7 +1038,7 @@ class App:
     
     def update_back_button(self):
         """Prompt 5: 更新返回上级按钮的显示状态"""
-        from layout_system import get_component_spacing
+        from src.ui.layout_system import get_component_spacing
         
         if self.current_category == "notes" and self.current_notes_path:
             # 在 notes 分类且不在根目录时显示，使用网格对齐的间距

@@ -6,7 +6,7 @@
 import tkinter as tk
 from typing import Dict, Tuple, Any, Optional, Union
 from dataclasses import dataclass
-from theme_system import get_theme_manager
+from .theme_system import get_theme_manager
 
 
 @dataclass

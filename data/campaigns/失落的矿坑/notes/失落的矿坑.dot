@@ -1,0 +1,26 @@
+digraph Story {
+    rankdir=TB;
+    splines=ortho;
+    nodesep=0.6;
+    ranksep=0.8;
+
+    node [shape=box, style=filled, fontcolor=white, fontname="Microsoft YaHei"];
+    edge [fontname="Microsoft YaHei"];
+
+    "start" [label="矿坑入口\n[start]", fillcolor="#4CAF50", border="none"];
+    "left_path" [label="主通道\n[left_path]", fillcolor="#2196F3", border="none"];
+    "right_path" [label="小径\n[right_path]", fillcolor="#2196F3", border="none"];
+    "spider_encounter" [label="蜘蛛巢穴\n[spider_encounter]", fillcolor="#4CAF50", border="none"];
+    "skeleton_encounter" [label="骷髅矿工\n[skeleton_encounter]", fillcolor="#4CAF50", border="none"];
+    "treasure_room" [label="宝藏室\n[treasure_room]", fillcolor="#4CAF50", border="none"];
+    "end" [label="冒险结束\n[end]", fillcolor="#4CAF50", border="none"];
+
+    "left_path" -> "spider_encounter" [color="#333333"];
+    "right_path" -> "skeleton_encounter" [color="#333333"];
+    "spider_encounter" -> "treasure_room" [color="#333333"];
+    "skeleton_encounter" -> "treasure_room" [color="#333333"];
+    "treasure_room" -> "end" [color="#333333"];
+
+    "start" -> "left_path" [label="走左边的主通道", color="#FF9800", fontcolor="#FF9800"];
+    "start" -> "right_path" [label="走右边的小径", color="#FF9800", fontcolor="#FF9800"];
+}

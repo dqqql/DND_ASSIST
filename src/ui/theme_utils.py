@@ -5,7 +5,7 @@
 
 import tkinter as tk
 from typing import Dict, Any, Callable, Optional
-from theme_system import get_theme_manager, ThemeManager
+from .theme_system import get_theme_manager, ThemeManager
 
 
 def apply_button_theme(button: tk.Button, variant: str = "normal") -> None:

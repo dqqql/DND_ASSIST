@@ -5,8 +5,8 @@
 
 import tkinter as tk
 from typing import Dict, Any, Optional
-from theme_system import get_theme_manager, ThemeConfig, ColorPalette, Typography, Spacing
-from theme_utils import (
+from .theme_system import get_theme_manager, ThemeConfig, ColorPalette, Typography, Spacing
+from .theme_utils import (
     apply_theme_to_existing_widgets, 
     setup_window_theme,
     add_interaction_feedback,
@@ -14,7 +14,7 @@ from theme_utils import (
     get_themed_fonts,
     get_themed_spacing
 )
-from layout_system import apply_layout_improvements, setup_responsive_layout
+from .layout_system import apply_layout_improvements, setup_responsive_layout
 
 
 class ThemeIntegrator:
@@ -109,7 +109,7 @@ class ThemeIntegrator:
     
     def _apply_enhanced_list_theme(self, listbox: tk.Listbox) -> None:
         """为列表控件应用增强主题"""
-        from theme_utils import add_list_interaction_feedback
+        from .theme_utils import add_list_interaction_feedback
         
         theme = self.theme_manager.get_current_theme()
         

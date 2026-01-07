@@ -1,258 +1,328 @@
-<img width="1127" height="665" alt="image" src="https://github.com/user-attachments/assets/6e9a1d4c-4b8b-482b-b676-9d0a820ddca2" />
+# 🎲 DND 跑团管理器
 
+<div align="center">
 
-# DND 跑团管理器
+![DND Manager](https://img.shields.io/badge/DND-Manager-blue?style=for-the-badge&logo=dungeons-dragons)
+![Python](https://img.shields.io/badge/Python-3.7+-green?style=for-the-badge&logo=python)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
-一个现代化的 DND 跑团资料管理工具，提供直观的界面和完整的跑团管理功能。
+**一个现代化的 DND 跑团资料管理工具**
 
----
+集成数据管理 • 剧情可视化 • 现代化界面
 
-## 📖 用户使用指南
+[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用指南](#-使用指南) • [开发](#-开发)
 
-### 🎯 快速开始
-
-1. **安装依赖**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **启动程序**
-   ```bash
-   python main.py
-   ```
-
-3. **创建第一个跑团**
-   - 点击左侧"新建跑团"按钮
-   - 输入跑团名称
-   - 程序会自动创建跑团文件夹结构
-
-### 🎲 跑团管理
-
-#### 创建和管理跑团
-- **新建跑团**：点击"新建跑团"按钮，输入跑团名称
-- **切换跑团**：在左侧列表中点击选择不同的跑团
-- **删除跑团**：选中跑团后点击"删除跑团"按钮（会删除整个跑团文件夹）
-
-#### 跑团数据结构
-每个跑团包含四个固定分类：
-- **人物卡（characters）**：存储玩家角色信息
-- **怪物卡（monsters）**：存储NPC和怪物数据
-- **地图（maps）**：存储地图图片文件
-- **剧情（notes）**：存储剧情笔记和故事线
-
-### 📝 内容管理
-
-#### 文本内容（人物卡/怪物卡/剧情）
-
-**创建文件**
-1. 选择对应分类（人物卡/怪物卡/剧情）
-2. 点击"新建文件"按钮
-3. 输入文件名（无需扩展名，程序自动添加.txt）
-4. 程序会根据分类自动生成模板内容
-
-**查看和编辑**
-- 在文件列表中单击文件可在右侧预览内容
-- 双击文件使用系统默认编辑器打开进行编辑
-- 内容会实时从磁盘重新读取，确保显示最新版本
-
-**文件模板**
-- **人物卡模板**：包含姓名、种族、职业、技能、装备、背景等字段
-- **怪物卡模板**：包含姓名、CR、属性、攻击、特性等字段
-- **剧情文件**：空白文件，可自由编写
-
-#### 地图管理
-
-**导入地图**
-1. 选择"地图"分类
-2. 点击"导入文件"按钮
-3. 选择一个或多个图片文件
-4. 文件会被复制到跑团的地图文件夹中
-
-**查看地图**
-- 在文件列表中单击地图文件可在右侧预览
-- 图片会自动缩放以适应显示区域，保持原始比例
-- 双击地图文件使用系统默认图片查看器打开原图
-
-#### 剧情文件夹管理
-
-剧情分类支持子文件夹功能：
-- **进入文件夹**：双击标有"[DIR]"的文件夹项
-- **返回上级**：点击"返回上级"按钮（仅在子文件夹中显示）
-- **文件夹优先**：文件夹始终显示在文件列表顶部
-
-### 🗑️ 安全删除功能
-
-程序提供安全的删除功能：
-- 点击"删除文件"按钮可删除选中的文件或文件夹
-- **重要**：删除操作仅从软件界面隐藏文件，不会真正删除磁盘上的文件
-- 被隐藏的文件信息保存在跑团目录的`.hidden_files`文件中
-- 如需恢复文件，可直接编辑该隐藏文件列表或重新导入
-
-### 🎨 界面特性
-
-- **现代化UI**：采用统一的颜色方案和字体系统
-- **响应式布局**：基于8px网格系统的精确间距
-- **交互反馈**：按钮悬停效果、焦点指示器等
-- **分类状态**：当前选中的分类按钮有明显的激活状态
-- **内容预览**：右侧实时显示选中文件的内容
-
-### 🌐 预览系统
-
-#### 剧情预览功能
-程序提供了强大的剧情可视化预览系统：
-
-**生成预览文件**
-```bash
-# 生成所有剧情的预览文件
-python tools/generate_preview.py
-
-# 生成特定剧情的预览文件
-python tools/generate_preview.py 跑团名 剧本名 剧情名
-```
-
-**查看预览**
-```bash
-# 方式1：交互式选择（推荐）
-python tools/open_preview.py
-
-# 方式2：直接指定剧情
-python tools/open_preview.py 跑团名 剧本名 剧情名
-
-# 方式3：启动简单HTTP服务器
-python start_server.py [端口号]
-```
-
-**预览功能特性**
-- **🎯 交互式选择**：启动时显示所有可用剧情，支持数字选择或回车选择第一个
-- **🚀 自动服务器**：自动启动本地HTTP服务器并打开浏览器
-- **🔍 智能监控**：监控浏览器活动和进程状态
-- **⏰ 自动关闭**：检测到浏览器关闭后自动停止服务器（15秒无活动）
-- **🌐 交互式图形**：点击节点查看剧情详情，可视化显示剧情连接
-- **📱 多格式支持**：JSON数据 → DOT图形 → SVG可视化
-
-**重要提示**
-- 直接在浏览器中打开HTML文件可能因为浏览器安全限制无法加载图片
-- 推荐使用`python tools/open_preview.py`或`python start_server.py`启动本地服务器
-- 服务器会自动找到可用端口并打开浏览器
-
-### 💡 使用技巧
-
-1. **文件命名**：避免使用特殊字符 `/\:*?"<>|`
-2. **图片格式**：支持常见格式（PNG、JPG、GIF等）
-3. **文本编码**：所有文本文件使用UTF-8编码，支持中文
-4. **快捷操作**：
-   - 双击文件快速打开编辑
-   - 使用Tab键在界面元素间切换
-   - 对话框中按Enter确认，Esc取消
+</div>
 
 ---
 
-## 🔧 开发者指南
+## 📖 项目简介
 
-### 📁 项目架构
+DND 跑团管理器是一个专为 D&D 游戏主持人（DM）和玩家设计的综合性管理工具。它提供了直观的图形界面，帮助你轻松管理跑团中的所有资料，包括人物卡、怪物数据、地图资源和剧情结构。
 
-```
-dnd_manager/
-├── main.py                    # 主程序入口和核心逻辑
-├── theme_system.py           # 主题系统（颜色、字体、间距）
-├── theme_integration.py      # 主题集成和对话框
-├── theme_utils.py           # 主题工具函数和交互反馈
-├── layout_system.py         # 布局系统和响应式设计
-├── visual_enhancements.py   # 视觉增强功能
-├── final_integration_simple.py # 最终集成和测试
-├── README.md                # 项目文档
-├── CHANGELOG_beta_0.2.md    # 版本更新日志
-└── data/                    # 数据目录（运行时创建）
-    └── campaigns/           # 跑团数据
-        └── [跑团名]/
-            ├── characters/  # 人物卡目录
-            ├── monsters/    # 怪物卡目录
-            ├── maps/        # 地图目录
-            ├── notes/       # 剧情目录
-            └── .hidden_files # 隐藏文件列表
-```
+### ✨ 核心亮点
 
-### 🏗️ 核心组件
+- 🎯 **统一管理** - 人物卡、怪物卡、地图、剧情四大分类一站式管理
+- 📊 **剧情可视化** - 将复杂的剧情结构转换为交互式流程图
+- 🎨 **现代化界面** - 统一的主题系统，响应式布局，流畅的交互体验
+- 🔒 **安全删除** - 文件隐藏机制，误删文件可轻松恢复
+- 🌐 **多格式支持** - 支持文本、JSON、图片等多种文件格式
 
-#### 主题系统 (theme_system.py)
-- **ColorPalette**: 统一的颜色方案，符合WCAG可访问性标准
-- **Typography**: 字体系统，基于8pt网格
-- **Spacing**: 间距系统，基于8px网格
-- **ThemeConfig**: 主题配置管理
-- **ThemeManager**: 全局主题管理器
+---
 
-#### 布局系统 (layout_system.py)
-- **LayoutConfig**: 基于8px网格的布局配置
-- **LayoutManager**: 布局管理和响应式设计
-- 支持不同屏幕尺寸的自适应布局
+## 🚀 快速开始
 
-#### 主题集成 (theme_integration.py)
-- **ThemeIntegrator**: 将主题系统集成到现有应用
-- **现代化对话框**: 替代标准messagebox的主题化对话框
-- **动态主题应用**: 支持运行时主题切换
+### 环境要求
 
-#### 交互增强 (theme_utils.py)
-- 按钮悬停效果和点击反馈
-- 列表选择和悬停效果
-- 分类按钮状态管理
-- 焦点指示器和键盘导航
+- Python 3.7 或更高版本
+- Windows / macOS / Linux
 
-### 🔧 开发环境设置
+### 安装步骤
 
-1. **Python环境**
+1. **克隆项目**
    ```bash
-   python --version  # 需要Python 3.6+
+   git clone https://github.com/your-username/dnd-manager.git
+   cd dnd-manager
    ```
 
 2. **安装依赖**
    ```bash
-   pip install pillow  # 图片处理
-   # Tkinter是Python标准库，无需额外安装
+   pip install -r requirements.txt
    ```
 
-3. **运行开发版本**
+3. **运行程序**
    ```bash
-   python main.py  # 启动主程序
-   python final_integration_simple.py  # 运行集成测试
+   python main.py
    ```
 
-### 🧪 测试和验证
+4. **创建示例数据**（可选）
+   ```bash
+   python examples/sample_campaign.py
+   ```
 
-#### 功能测试
-```bash
-# 运行集成验证测试
-python final_integration_simple.py
+---
+
+## 🎯 功能特性
+
+### 📋 跑团管理
+- ✅ 创建、切换、删除跑团
+- ✅ 自动生成标准文件夹结构
+- ✅ 跑团数据完全本地化存储
+
+### 📝 内容管理
+- ✅ **人物卡管理** - 标准化模板，快速创建角色档案
+- ✅ **怪物卡管理** - 完整的怪物数据库，包含属性、技能、描述
+- ✅ **地图管理** - 支持图片导入、预览和组织
+- ✅ **剧情管理** - 支持文本笔记和结构化剧情文件
+
+### 🎨 用户体验
+- ✅ **现代化主题** - 统一的颜色方案和字体系统
+- ✅ **响应式布局** - 基于8px网格的精确对齐
+- ✅ **交互反馈** - 悬停效果、点击反馈、状态指示
+- ✅ **安全操作** - 删除确认、文件恢复、操作撤销
+
+### 📊 剧情可视化
+- ✅ **JSON剧情编辑** - 结构化的剧情节点定义
+- ✅ **自动图形生成** - JSON → DOT → SVG 自动转换
+- ✅ **交互式预览** - 基于Web的剧情流程图查看器
+- ✅ **分支逻辑** - 支持复杂的剧情分支和选择
+
+---
+
+## 📚 使用指南
+
+### 🎲 跑团管理
+
+#### 创建新跑团
+1. 启动程序后，点击左侧 **"新建跑团"** 按钮
+2. 输入跑团名称（支持中文）
+3. 程序自动创建标准文件夹结构：
+   ```
+   data/campaigns/[跑团名]/
+   ├── characters/    # 人物卡
+   ├── monsters/      # 怪物卡  
+   ├── maps/          # 地图
+   └── notes/         # 剧情
+   ```
+
+#### 切换跑团
+- 在左侧跑团列表中点击选择不同的跑团
+- 右侧内容区域会自动切换到对应跑团的数据
+
+### 📝 内容创建
+
+#### 人物卡 & 怪物卡
+1. 选择对应分类标签
+2. 点击 **"新建文件"** 按钮
+3. 输入文件名（无需扩展名）
+4. 程序自动生成标准模板：
+
+**人物卡模板**
+```
+姓名: 
+种族: 
+职业: 
+等级: 
+生命值: 
+护甲等级: 
+技能: 
+装备: 
+背景: 
 ```
 
-#### 手动测试检查项
-- [ ] 跑团创建和删除功能
-- [ ] 四个分类的切换和文件管理
-- [ ] 文本文件的创建、预览和编辑
-- [ ] 图片文件的导入和预览
-- [ ] 剧情文件夹的导航功能
-- [ ] 安全删除和隐藏功能
-- [ ] 界面响应式调整
-- [ ] 主题和交互效果
+**怪物卡模板**
+```
+名称: 
+类型: 
+挑战等级: 
+生命值: 
+护甲等级: 
+速度: 
+属性: 
+技能: 
+抗性: 
+攻击: 
+特殊能力: 
+描述: 
+```
 
+#### 地图管理
+1. 选择 **"地图"** 分类
+2. 点击 **"导入文件"** 按钮
+3. 选择图片文件（支持 JPG、PNG、GIF 等格式）
+4. 双击文件名可预览地图
 
+#### 剧情管理
 
-#### 主题应用流程
-1. **初始化**: 创建ThemeManager和LayoutManager实例
-2. **UI构建**: 在build_ui()中应用主题样式
-3. **集成**: 通过ThemeIntegrator整合所有主题功能
-4. **增强**: 添加交互反馈和视觉效果
+**普通文本剧情**
+- 创建 `.txt` 文件，用于记录游戏笔记、背景设定等
 
-#### 文件操作流程
-1. **创建**: 根据分类生成模板文件
-2. **读取**: 实时从磁盘读取文件内容
-3. **预览**: 在右侧面板显示内容
-4. **编辑**: 调用系统默认编辑器
-5. **删除**: 添加到隐藏列表而非物理删除
+**结构化剧情**
+- 创建 `.json` 文件，用于定义复杂的剧情流程
+- 支持主线节点、分支选择、条件跳转
 
+**JSON剧情格式示例**
+```json
+{
+  "title": "剧情名称",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "main",
+      "title": "开始",
+      "content": "剧情描述...",
+      "next": "choice_01",
+      "branches": [
+        {
+          "choice": "选择A",
+          "entry": "branch_a",
+          "exit": "result_a"
+        }
+      ]
+    }
+  ]
+}
+```
 
+### 📊 剧情可视化
 
+#### 生成预览文件
+```bash
+# 生成所有剧情的预览
+python tools/generate_preview.py
 
+# 或者分步执行
+python tools/json_to_dot.py    # JSON → DOT
+python tools/dot_to_svg.py     # DOT → SVG
+```
 
+#### 查看剧情图
+```bash
+# 交互式选择剧情
+python tools/open_preview.py
 
+# 直接打开指定剧情
+python tools/open_preview.py "跑团名" "剧本名" "剧情名"
+```
 
+### 🔒 安全功能
 
+#### 文件恢复
+- 删除的文件不会立即物理删除，而是添加到隐藏列表
+- 点击 **"显示隐藏文件"** 可查看已删除的文件
+- 选中隐藏文件后点击 **"恢复文件"** 可恢复
+
+#### 数据备份
+- 所有数据存储在 `data/campaigns/` 目录下
+- 建议定期备份整个 `data` 文件夹
+- 支持跨设备数据迁移
+
+---
+
+## 🛠️ 开发
+
+### 项目结构
+```
+dnd-manager/
+├── main.py                 # 主程序入口
+├── start_server.py         # HTTP服务器启动脚本
+├── src/                    # 源代码
+│   ├── ui/                 # UI系统
+│   │   ├── theme_system.py      # 主题系统
+│   │   ├── layout_system.py     # 布局系统
+│   │   ├── theme_integration.py # 主题集成
+│   │   └── theme_utils.py       # 主题工具
+│   └── story_editor/       # 剧情编辑器
+├── tools/                  # 工具脚本
+│   ├── generate_preview.py      # 预览生成
+│   ├── json_to_dot.py           # JSON转DOT
+│   ├── dot_to_svg.py            # DOT转SVG
+│   ├── open_preview.py          # 预览查看器
+│   └── preview/                 # Web预览文件
+├── data/                   # 用户数据
+│   └── campaigns/          # 跑团数据
+├── examples/               # 示例文件
+│   └── sample_campaign.py      # 示例数据生成器
+└── requirements.txt        # 依赖列表
+```
+
+### 技术栈
+- **GUI框架**: Tkinter (Python标准库)
+- **图像处理**: Pillow
+- **进程监控**: psutil (可选)
+- **图形可视化**: Graphviz (外部依赖)
+- **Web预览**: HTML5 + JavaScript + SVG
+
+### 扩展开发
+
+#### 添加新的文件类型
+1. 在 `CATEGORIES` 字典中添加新分类
+2. 在 `create_file_template()` 方法中添加对应模板
+3. 更新UI布局以支持新分类
+
+#### 自定义主题
+1. 修改 `src/ui/theme_system.py` 中的 `ColorPalette` 类
+2. 调整颜色、字体、间距等参数
+3. 重启程序应用新主题
+
+#### 添加新的预览格式
+1. 在 `tools/` 目录下创建转换脚本
+2. 更新 `generate_preview.py` 集成新的转换流程
+3. 修改 `preview.html` 支持新的预览格式
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+### 开发环境设置
+```bash
+# 克隆项目
+git clone https://github.com/your-username/dnd-manager.git
+cd dnd-manager
+
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行测试
+python examples/sample_campaign.py
+python main.py
+```
+
+### 提交规范
+- 🐛 `fix:` 修复bug
+- ✨ `feat:` 新功能
+- 📝 `docs:` 文档更新
+- 🎨 `style:` 代码格式
+- ♻️ `refactor:` 代码重构
+- ⚡ `perf:` 性能优化
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+---
+
+## 🙏 致谢
+
+- [Tkinter](https://docs.python.org/3/library/tkinter.html) - Python GUI 框架
+- [Pillow](https://pillow.readthedocs.io/) - Python 图像处理库
+- [Graphviz](https://graphviz.org/) - 图形可视化工具
+- [D&D 5e](https://dnd.wizards.com/) - 龙与地下城第五版
+
+---
+
+<div align="center">
+
+**⭐ 如果这个项目对你有帮助，请给个星标支持！**
+
+Made with ❤️ for D&D enthusiasts
+
+</div>
