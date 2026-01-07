@@ -1,3 +1,5 @@
+<img width="1127" height="665" alt="image" src="https://github.com/user-attachments/assets/6e9a1d4c-4b8b-482b-b676-9d0a820ddca2" />
+
 
 # DND 跑团管理器
 
@@ -207,6 +209,7 @@ python final_integration_simple.py
 3. **预览**: 在右侧面板显示内容
 4. **编辑**: 调用系统默认编辑器
 5. **删除**: 添加到隐藏列表而非物理删除
+
 
 
 
