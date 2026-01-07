@@ -5,6 +5,7 @@ from tkinter import filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 import subprocess
 import sys
+import json
 
 # 导入主题系统
 from theme_integration import (
@@ -480,9 +481,121 @@ class App:
             return "姓名: \n\nCR: \n\n属性: \n\n攻击: \n\n特性: 无\n\n"
         return ""
 
+    def select_file_type(self):
+        """在notes分类中选择文件类型"""
+        # 创建文件类型选择对话框
+        dialog = create_themed_dialog(self.root, "选择文件类型", "400x200")
+        
+        # 创建主框架
+        main_frame = tk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 提示标签
+        theme_manager = get_theme_manager()
+        theme = theme_manager.get_current_theme()
+        
+        label = tk.Label(main_frame, text="请选择要创建的文件类型:", 
+                        font=theme.typography.get_font_tuple(theme.typography.size_medium))
+        theme_manager.apply_theme_to_widget(label, "label", "normal")
+        label.pack(pady=(0, 15))
+        
+        result = {"file_type": None}
+        
+        def select_txt():
+            result["file_type"] = "txt"
+            dialog.destroy()
+        
+        def select_json():
+            result["file_type"] = "json"
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        # 按钮框架
+        button_frame = tk.Frame(main_frame)
+        theme_manager.apply_theme_to_widget(button_frame, "frame", "normal")
+        button_frame.pack(pady=10)
+        
+        # 文件类型按钮
+        txt_button = create_themed_button(button_frame, text="普通剧情 (.txt)", command=select_txt, width=15)
+        txt_button.pack(pady=5)
+        
+        json_button = create_themed_button(button_frame, text="结构化剧情 (.json)", command=select_json, width=15)
+        json_button.pack(pady=5)
+        
+        # 取消按钮
+        cancel_button = create_themed_button(button_frame, text="取消", command=on_cancel, width=15)
+        cancel_button.pack(pady=(10, 0))
+        
+        dialog.wait_window()
+        
+        return result["file_type"]
+
+    def get_json_story_template(self):
+        """生成JSON剧情文件模板"""
+        import json
+        
+        template = {
+            "title": "新剧情",
+            "nodes": [
+                {
+                    "id": "main_01",
+                    "type": "main",
+                    "title": "开始",
+                    "content": "你们的冒险从这里开始...",
+                    "next": "main_02",
+                    "branches": [
+                        {
+                            "choice": "选择路径A",
+                            "entry": "branch_A_01",
+                            "exit": "main_02"
+                        },
+                        {
+                            "choice": "选择路径B", 
+                            "entry": "branch_B_01",
+                            "exit": "main_02"
+                        }
+                    ]
+                },
+                {
+                    "id": "main_02",
+                    "type": "main",
+                    "title": "汇合点",
+                    "content": "无论选择哪条路径，你们都来到了这里...",
+                    "next": None,
+                    "branches": []
+                },
+                {
+                    "id": "branch_A_01",
+                    "type": "branch",
+                    "title": "路径A - 第一步",
+                    "content": "你们选择了路径A，遇到了...",
+                    "next": None
+                },
+                {
+                    "id": "branch_B_01", 
+                    "type": "branch",
+                    "title": "路径B - 第一步",
+                    "content": "你们选择了路径B，发现了...",
+                    "next": None
+                }
+            ]
+        }
+        
+        return json.dumps(template, ensure_ascii=False, indent=2)
+
     def create_file(self):
         if not self.current_campaign or not self.current_category:
             return
+        
+        # 如果是notes分类，先选择文件类型
+        if self.current_category == "notes":
+            file_type = self.select_file_type()
+            if not file_type:
+                return
+        else:
+            file_type = "txt"
         
         # 创建主题化对话框
         dialog = create_themed_dialog(self.root, "新建文件", "450x180")
@@ -520,8 +633,12 @@ class App:
                 show_themed_error(self.root, "错误", f"文件名不能包含以下字符: {INVALID_FILENAME_CHARS}")
                 return
         
-        # 添加.txt扩展名
-        filename = filename + ".txt"
+        # 根据文件类型添加扩展名
+        if file_type == "json":
+            filename = filename + ".json"
+        else:
+            filename = filename + ".txt"
+        
         base_dir = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
         target_dir = os.path.join(base_dir, self.current_notes_path) if self.current_category == "notes" else base_dir
         file_path = os.path.join(target_dir, filename)
@@ -531,7 +648,11 @@ class App:
             return
         
         # 获取模板内容并创建文件
-        template_content = self.get_template_content(self.current_category)
+        if file_type == "json":
+            template_content = self.get_json_story_template()
+        else:
+            template_content = self.get_template_content(self.current_category)
+        
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(template_content)
         
@@ -564,6 +685,9 @@ class App:
         # 如果是文本文件，显示内容
         if self.current_category in ["characters", "monsters", "notes"] and filename.endswith('.txt'):
             self.show_text_content(file_path)
+        # 如果是JSON剧情文件，显示结构化内容
+        elif self.current_category == "notes" and filename.endswith('.json'):
+            self.show_json_story_content(file_path)
         # 如果是地图文件，显示图片
         elif self.current_category == "maps":
             self.show_image_content(file_path)
@@ -596,6 +720,233 @@ class App:
             self.content_text.delete(1.0, tk.END)
             self.content_text.insert(1.0, f"无法读取文件: {str(e)}")
             self.content_text.config(state=tk.DISABLED)
+
+    def show_json_story_content(self, file_path):
+        """显示JSON剧情文件内容
+           解析JSON文件并以结构化格式显示"""
+        try:
+            # 从磁盘重新读取文件内容
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 解析JSON内容
+            story_data = json.loads(content)
+            
+            # 验证JSON结构
+            validation_error = self._validate_story_structure(story_data)
+            if validation_error:
+                self._show_json_error(f"JSON结构错误: {validation_error}")
+                return
+            
+            # 构建结构化显示文本
+            display_text = self._build_story_display_text(story_data)
+            
+            # 显示文本区域，隐藏图片区域
+            self.text_frame.pack(fill=tk.BOTH, expand=True)
+            self.image_frame.pack_forget()
+            
+            self.content_text.config(state=tk.NORMAL)
+            self.content_text.delete(1.0, tk.END)
+            self.content_text.insert(1.0, display_text)
+            self.content_text.config(state=tk.DISABLED)
+            
+        except json.JSONDecodeError as e:
+            # JSON格式错误处理 - 提供详细的错误信息和建议
+            error_msg = f"JSON格式错误: {str(e)}\n\n"
+            error_msg += "常见问题和解决方案:\n"
+            error_msg += "• 检查是否有多余的逗号\n"
+            error_msg += "• 确保所有字符串都用双引号包围\n"
+            error_msg += "• 检查括号和大括号是否匹配\n"
+            error_msg += "• 确保最后一个元素后没有逗号\n\n"
+            error_msg += "建议使用JSON格式验证工具检查文件格式。"
+            self._show_json_error(error_msg)
+        except FileNotFoundError:
+            self._show_json_error("文件不存在，请检查文件路径。")
+        except PermissionError:
+            self._show_json_error("没有权限读取文件，请检查文件权限。")
+        except UnicodeDecodeError:
+            self._show_json_error("文件编码错误，请确保文件使用UTF-8编码保存。")
+        except Exception as e:
+            # 其他错误处理
+            self._show_json_error(f"无法读取文件: {str(e)}\n\n请检查文件是否损坏或格式是否正确。")
+    
+    def _validate_story_structure(self, story_data):
+        """验证JSON剧情文件的基本结构
+           返回错误信息，如果没有错误返回None"""
+        try:
+            # 检查必需的顶级字段
+            if not isinstance(story_data, dict):
+                return "根元素必须是一个对象"
+            
+            if "title" not in story_data:
+                return "缺少必需的 'title' 字段"
+            
+            if "nodes" not in story_data:
+                return "缺少必需的 'nodes' 字段"
+            
+            nodes = story_data["nodes"]
+            if not isinstance(nodes, list):
+                return "'nodes' 字段必须是一个数组"
+            
+            if len(nodes) == 0:
+                return "'nodes' 数组不能为空"
+            
+            # 检查节点结构
+            for i, node in enumerate(nodes):
+                if not isinstance(node, dict):
+                    return f"节点 {i} 必须是一个对象"
+                
+                # 检查必需字段
+                required_fields = ["id", "type", "title"]
+                for field in required_fields:
+                    if field not in node:
+                        return f"节点 {i} 缺少必需的 '{field}' 字段"
+                
+                # 检查节点类型
+                node_type = node.get("type")
+                if node_type not in ["main", "branch"]:
+                    return f"节点 {i} 的 'type' 字段必须是 'main' 或 'branch'"
+                
+                # 检查主线节点的分支结构
+                if node_type == "main" and "branches" in node:
+                    branches = node["branches"]
+                    if not isinstance(branches, list):
+                        return f"主线节点 {i} 的 'branches' 字段必须是一个数组"
+                    
+                    for j, branch in enumerate(branches):
+                        if not isinstance(branch, dict):
+                            return f"主线节点 {i} 的分支 {j} 必须是一个对象"
+                        
+                        if "choice" not in branch:
+                            return f"主线节点 {i} 的分支 {j} 缺少 'choice' 字段"
+            
+            return None  # 没有错误
+            
+        except Exception as e:
+            return f"验证过程中发生错误: {str(e)}"
+    
+    def _build_story_display_text(self, story_data):
+        """构建剧情显示文本"""
+        lines = []
+        
+        # 显示标题 - 简洁的格式
+        title = story_data.get("title", "未命名剧情")
+        lines.append(f"剧情: {title}")
+        lines.append("")
+        
+        # 获取所有节点
+        nodes = story_data.get("nodes", [])
+        
+        # 按类型分组节点
+        main_nodes = [node for node in nodes if node.get("type") == "main"]
+        branch_nodes = {node.get("id"): node for node in nodes if node.get("type") == "branch"}
+        
+        # 构建节点关系图
+        node_map = {node.get("id"): node for node in nodes}
+        
+        # 显示剧情流程
+        lines.extend(self._build_story_flow(main_nodes, branch_nodes, node_map))
+        
+        return "\n".join(lines)
+    
+    def _build_story_flow(self, main_nodes, branch_nodes, node_map):
+        """构建清晰的剧情流程显示"""
+        lines = []
+        
+        # 按ID排序主线节点
+        main_nodes.sort(key=lambda x: x.get("id", ""))
+        
+        for i, main_node in enumerate(main_nodes):
+            title = main_node.get("title", "未命名")
+            content = main_node.get("content", "")
+            
+            # 主线节点标题 - 使用粗体效果
+            lines.append(f"■ {title}")
+            
+            # 主线节点内容 - 缩进显示
+            if content:
+                lines.append(f"  {content}")
+            
+            # 显示分支选择
+            branches = main_node.get("branches", [])
+            if branches:
+                lines.append("")
+                lines.append("  选择:")
+                for branch in branches:
+                    choice = branch.get("choice", "未命名选择")
+                    entry_id = branch.get("entry", "")
+                    exit_id = branch.get("exit", "")
+                    
+                    lines.append(f"    • {choice}")
+                    
+                    # 显示分支路径内容（不重复标题）
+                    if entry_id in branch_nodes:
+                        branch_path = self._trace_branch_path(entry_id, branch_nodes, exit_id, show_title=False)
+                        for path_line in branch_path:
+                            lines.append(f"      {path_line}")
+                    
+                    if exit_id and exit_id in node_map:
+                        exit_title = node_map[exit_id].get("title", exit_id)
+                        lines.append(f"      → 回到: {exit_title}")
+            
+            # 显示下一个主线节点
+            next_id = main_node.get("next")
+            if next_id and next_id in node_map:
+                next_title = node_map[next_id].get("title", next_id)
+                lines.append("")
+                lines.append("  ↓")
+                lines.append(f"  {next_title}")
+            
+            lines.append("")
+        
+        return lines
+    
+    def _trace_branch_path(self, start_id, branch_nodes, exit_id, show_title=True):
+        """追踪分支路径"""
+        path_lines = []
+        current_id = start_id
+        visited = set()
+        
+        while current_id and current_id in branch_nodes and current_id not in visited:
+            visited.add(current_id)
+            node = branch_nodes[current_id]
+            
+            title = node.get("title", "未命名")
+            content = node.get("content", "")
+            
+            # 只在需要时显示分支标题
+            if show_title:
+                path_lines.append(f"▸ {title}")
+            
+            # 分支内容 - 直接显示或缩进显示
+            if content:
+                if show_title:
+                    path_lines.append(f"  {content}")
+                else:
+                    path_lines.append(content)
+            
+            # 检查是否到达出口
+            if current_id == exit_id:
+                break
+                
+            current_id = node.get("next")
+            
+            # 如果有下一个节点，添加箭头
+            if current_id and current_id in branch_nodes:
+                path_lines.append("  ↓")
+        
+        return path_lines
+    
+    def _show_json_error(self, error_message):
+        """显示JSON错误信息"""
+        # 显示文本区域，隐藏图片区域
+        self.text_frame.pack(fill=tk.BOTH, expand=True)
+        self.image_frame.pack_forget()
+        
+        self.content_text.config(state=tk.NORMAL)
+        self.content_text.delete(1.0, tk.END)
+        self.content_text.insert(1.0, error_message)
+        self.content_text.config(state=tk.DISABLED)
 
     def show_image_content(self, file_path):
         """在右侧显示图片内容

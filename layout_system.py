@@ -124,19 +124,23 @@ class LayoutManager:
             child_class = child.__class__.__name__
             if child_class == "Frame":
                 # 检查是否是左侧或右侧面板
-                pack_info = child.pack_info()
-                if pack_info.get("side") == "left":
-                    # 左侧面板
-                    child.pack_configure(
-                        padx=(window_padding, self.config.component_spacing["panel"]),
-                        pady=window_padding
-                    )
-                elif pack_info.get("side") == "right":
-                    # 右侧面板
-                    child.pack_configure(
-                        padx=(self.config.component_spacing["panel"], window_padding),
-                        pady=window_padding
-                    )
+                try:
+                    pack_info = child.pack_info()
+                    if pack_info.get("side") == "left":
+                        # 左侧面板
+                        child.pack_configure(
+                            padx=(window_padding, self.config.component_spacing["panel"]),
+                            pady=window_padding
+                        )
+                    elif pack_info.get("side") == "right":
+                        # 右侧面板
+                        child.pack_configure(
+                            padx=(self.config.component_spacing["panel"], window_padding),
+                            pady=window_padding
+                        )
+                except tk.TclError:
+                    # 如果控件没有被pack管理，跳过
+                    continue
     
     def _apply_left_panel_layout(self, panel: tk.Widget) -> None:
         """应用左侧面板布局"""
@@ -166,14 +170,18 @@ class LayoutManager:
         children = panel.winfo_children()
         for child in children:
             child_class = child.__class__.__name__
-            pack_info = child.pack_info()
-            
-            if pack_info.get("side") == "top":
-                # 顶部区域（分类按钮区域）
-                child.pack_configure(pady=(0, self.config.component_spacing["section"]))
-            elif pack_info.get("fill") == "both":
-                # 文件管理区域
-                child.pack_configure(pady=0)
+            try:
+                pack_info = child.pack_info()
+                
+                if pack_info.get("side") == "top":
+                    # 顶部区域（分类按钮区域）
+                    child.pack_configure(pady=(0, self.config.component_spacing["section"]))
+                elif pack_info.get("fill") == "both":
+                    # 文件管理区域
+                    child.pack_configure(pady=0)
+            except tk.TclError:
+                # 如果控件没有被pack管理，跳过
+                continue
     
     def _apply_button_group_layout(self, button_container: tk.Widget) -> None:
         """应用按钮组布局"""
@@ -183,13 +191,17 @@ class LayoutManager:
         # 为按钮容器内的按钮设置间距
         for child in button_container.winfo_children():
             if child.__class__.__name__ == "Button":
-                pack_info = child.pack_info()
-                if pack_info.get("side") == "left":
-                    # 分类按钮 - 使用较小间距
-                    child.pack_configure(padx=category_spacing)
-                else:
-                    # 其他按钮 - 使用标准间距
-                    child.pack_configure(padx=button_spacing // 2)
+                try:
+                    pack_info = child.pack_info()
+                    if pack_info.get("side") == "left":
+                        # 分类按钮 - 使用较小间距
+                        child.pack_configure(padx=category_spacing)
+                    else:
+                        # 其他按钮 - 使用标准间距
+                        child.pack_configure(padx=button_spacing // 2)
+                except tk.TclError:
+                    # 如果控件没有被pack管理，跳过
+                    continue
     
     def _apply_content_area_layout(self, content_area: tk.Widget) -> None:
         """应用内容区域布局"""
@@ -198,14 +210,18 @@ class LayoutManager:
         # 为内容区域的子控件设置间距
         for child in content_area.winfo_children():
             child_class = child.__class__.__name__
-            pack_info = child.pack_info()
-            
-            if child_class == "Label":
-                # 内容标题
-                child.pack_configure(pady=(0, self.config.grid_size))
-            elif child_class == "Frame":
-                # 文本或图片显示框架
-                child.pack_configure(pady=0)
+            try:
+                pack_info = child.pack_info()
+                
+                if child_class == "Label":
+                    # 内容标题
+                    child.pack_configure(pady=(0, self.config.grid_size))
+                elif child_class == "Frame":
+                    # 文本或图片显示框架
+                    child.pack_configure(pady=0)
+            except tk.TclError:
+                # 如果控件没有被pack管理，跳过
+                continue
     
     def optimize_widget_spacing(self, widget: tk.Widget, widget_type: str) -> None:
         """优化单个控件的间距"""
@@ -283,18 +299,22 @@ class LayoutManager:
         # 为主要区域添加适当的分离间距
         children = container.winfo_children()
         for i, child in enumerate(children):
-            pack_info = child.pack_info()
-            
-            # 为不同类型的区域设置不同的间距
-            if pack_info.get("side") in ["top", "bottom"]:
-                # 水平分离的区域
-                if i > 0:  # 不是第一个子控件
-                    current_pady = pack_info.get("pady", 0)
-                    if isinstance(current_pady, tuple):
-                        new_pady = (max(current_pady[0], section_spacing), current_pady[1])
-                    else:
-                        new_pady = (section_spacing, current_pady)
-                    child.pack_configure(pady=new_pady)
+            try:
+                pack_info = child.pack_info()
+                
+                # 为不同类型的区域设置不同的间距
+                if pack_info.get("side") in ["top", "bottom"]:
+                    # 水平分离的区域
+                    if i > 0:  # 不是第一个子控件
+                        current_pady = pack_info.get("pady", 0)
+                        if isinstance(current_pady, tuple):
+                            new_pady = (max(current_pady[0], section_spacing), current_pady[1])
+                        else:
+                            new_pady = (section_spacing, current_pady)
+                        child.pack_configure(pady=new_pady)
+            except tk.TclError:
+                # 如果控件没有被pack管理，跳过
+                continue
     
     def _enhance_content_grouping(self, container: tk.Widget) -> None:
         """增强内容分组"""
@@ -318,32 +338,36 @@ class LayoutManager:
     
     def _align_widget_to_grid(self, widget: tk.Widget) -> None:
         """将控件对齐到网格"""
-        pack_info = widget.pack_info()
-        
-        # 对齐内边距到网格
-        padx = pack_info.get("padx", 0)
-        pady = pack_info.get("pady", 0)
-        
-        if isinstance(padx, tuple):
-            aligned_padx = (
-                self.config.get_grid_aligned_value(padx[0]),
-                self.config.get_grid_aligned_value(padx[1])
-            )
-        else:
-            aligned_padx = self.config.get_grid_aligned_value(padx)
-        
-        if isinstance(pady, tuple):
-            aligned_pady = (
-                self.config.get_grid_aligned_value(pady[0]),
-                self.config.get_grid_aligned_value(pady[1])
-            )
-        else:
-            aligned_pady = self.config.get_grid_aligned_value(pady)
-        
-        # 应用对齐后的间距
         try:
-            widget.pack_configure(padx=aligned_padx, pady=aligned_pady)
+            pack_info = widget.pack_info()
+            
+            # 对齐内边距到网格
+            padx = pack_info.get("padx", 0)
+            pady = pack_info.get("pady", 0)
+            
+            if isinstance(padx, tuple):
+                aligned_padx = (
+                    self.config.get_grid_aligned_value(padx[0]),
+                    self.config.get_grid_aligned_value(padx[1])
+                )
+            else:
+                aligned_padx = self.config.get_grid_aligned_value(padx)
+            
+            if isinstance(pady, tuple):
+                aligned_pady = (
+                    self.config.get_grid_aligned_value(pady[0]),
+                    self.config.get_grid_aligned_value(pady[1])
+                )
+            else:
+                aligned_pady = self.config.get_grid_aligned_value(pady)
+            
+            # 应用对齐后的间距
+            try:
+                widget.pack_configure(padx=aligned_padx, pady=aligned_pady)
+            except tk.TclError:
+                pass
         except tk.TclError:
+            # 如果控件没有被pack管理，跳过
             pass
     
     def get_responsive_spacing(self, window_width: int, base_spacing: int) -> int:
@@ -371,13 +395,21 @@ class LayoutManager:
         
         # 应用到主要区域
         for child in container.winfo_children():
-            pack_info = child.pack_info()
-            if pack_info.get("side") in ["left", "right"]:
-                # 调整面板间距
-                current_padx = pack_info.get("padx", 0)
-                if isinstance(current_padx, tuple):
-                    new_padx = (current_padx[0], responsive_spacing)
-                    child.pack_configure(padx=new_padx)
+            # 检查子控件是否有pack_info方法（排除Toplevel等窗口）
+            if not hasattr(child, 'pack_info'):
+                continue
+                
+            try:
+                pack_info = child.pack_info()
+                if pack_info.get("side") in ["left", "right"]:
+                    # 调整面板间距
+                    current_padx = pack_info.get("padx", 0)
+                    if isinstance(current_padx, tuple):
+                        new_padx = (current_padx[0], responsive_spacing)
+                        child.pack_configure(padx=new_padx)
+            except tk.TclError:
+                # 如果控件没有被pack管理，跳过
+                continue
 
 
 # 全局布局管理器实例
@@ -429,9 +461,13 @@ def _optimize_app_layout(app_instance, manager: LayoutManager) -> None:
 def _find_widget_by_side(parent: tk.Widget, side: str) -> Optional[tk.Widget]:
     """根据pack的side参数查找控件"""
     for child in parent.winfo_children():
-        pack_info = child.pack_info()
-        if pack_info.get("side") == side:
-            return child
+        try:
+            pack_info = child.pack_info()
+            if pack_info.get("side") == side:
+                return child
+        except tk.TclError:
+            # 如果控件没有被pack管理，跳过
+            continue
     return None
 
 

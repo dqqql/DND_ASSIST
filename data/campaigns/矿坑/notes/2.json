@@ -1,0 +1,54 @@
+{
+  "title": "新剧情",
+  "nodes": [
+    {
+      "id": "node_01",
+      "type": "main",
+      "title": "故事开始",
+      "content": "出生在城市",
+      "next": "node_02",
+      "branches": []
+    },
+    {
+      "id": "node_02",
+      "type": "main",
+      "title": "出发",
+      "content": "整理好装备",
+      "next": "node_05",
+      "branches": [
+        {
+          "choice": "探索森林",
+          "entry": "node_03",
+          "exit": "node_05"
+        },
+        {
+          "choice": "探索城市",
+          "entry": "node_04",
+          "exit": "node_05"
+        }
+      ]
+    },
+    {
+      "id": "node_03",
+      "type": "branch",
+      "title": "探索森林",
+      "content": "被打死",
+      "next": "node_05"
+    },
+    {
+      "id": "node_04",
+      "type": "branch",
+      "title": "探索城市",
+      "content": "被打飞",
+      "next": "node_05"
+    },
+    {
+      "id": "node_05",
+      "type": "main",
+      "title": "葬礼",
+      "content": "回城",
+      "next": null,
+      "branches": []
+    }
+  ]
+}
