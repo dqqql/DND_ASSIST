@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # 导入core层服务
-from src.core import CampaignService, FileManagerService, StoryGraphService
+from src.core import CampaignService, FileManagerService
 from src.core.config import CATEGORIES, IMAGE_PREVIEW_MAX_WIDTH, IMAGE_PREVIEW_MAX_HEIGHT
 
 # 导入主题系统
@@ -20,6 +20,9 @@ from src.ui.theme_utils import (
     apply_enhanced_interaction_feedback, enhance_category_button_feedback, update_category_button_states
 )
 from src.ui.theme_system import get_theme_manager
+
+# 导入Web预览模块
+from src.ui.web_preview import WebPreviewManager
 
 
 def open_file_with_system(path):
@@ -41,7 +44,10 @@ class App:
         # 初始化core层服务
         self.campaign_service = CampaignService()
         self.file_service = FileManagerService(self.campaign_service)
-        self.story_service = StoryGraphService()
+        
+        # 初始化Web预览管理器
+        self.web_preview = WebPreviewManager()
+        self.web_preview.set_server_stop_callback(self._on_preview_server_stopped)
 
         # UI状态变量
         self.current_category = None
@@ -63,6 +69,9 @@ class App:
         
         # 确保视觉一致性
         self._enhance_visual_consistency()
+        
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
     def build_ui(self):
         # 获取布局管理器和主题管理器
@@ -578,7 +587,7 @@ class App:
             self.show_text_content(file_path)
         elif self.current_category == "notes":
             if str(file_path).endswith('.json'):
-                self.show_json_story_content(file_path)
+                self.show_json_story_preview_info(file_path, display_name)
             elif str(file_path).endswith('.txt'):
                 self.show_text_content(file_path)
         elif self.current_category == "maps":
@@ -609,43 +618,160 @@ class App:
             self.content_text.insert(1.0, "无法读取文件")
             self.content_text.config(state=tk.DISABLED)
 
-    def show_json_story_content(self, file_path):
-        """显示JSON剧情文件的统计信息"""
-        story = self.story_service.parse_json_story(file_path)
+    def show_json_story_preview_info(self, file_path, display_name):
+        """显示JSON剧情文件的预览信息和操作按钮"""
+        story_name = Path(display_name).stem
+        campaign = self.campaign_service.get_current_campaign()
         
-        if story:
-            # 生成统计文本
-            display_text = self.story_service.generate_statistics_text(story, file_path)
-            
-            # 显示文本区域，隐藏图片区域
-            self.text_frame.pack(fill=tk.BOTH, expand=True)
-            self.image_frame.pack_forget()
-            
-            self.content_text.config(state=tk.NORMAL)
-            self.content_text.delete(1.0, tk.END)
-            self.content_text.insert(1.0, display_text)
-            self.content_text.config(state=tk.DISABLED)
+        if not campaign:
+            self._show_preview_error("未选择跑团")
+            return
+        
+        # 显示文本区域，隐藏图片区域
+        self.text_frame.pack(fill=tk.BOTH, expand=True)
+        self.image_frame.pack_forget()
+        
+        # 构建预览信息
+        info_text = f"剧情文件：{story_name}\n"
+        info_text += f"跑团：{campaign.name}\n"
+        info_text += f"文件路径：{file_path}\n\n"
+        
+        # 检查预览文件状态
+        from src.ui.web_preview.preview_generator import PreviewGenerator
+        generator = PreviewGenerator()
+        dot_exists, svg_exists = generator.check_preview_files_exist(campaign.name, story_name)
+        
+        info_text += "预览文件状态：\n"
+        info_text += f"• DOT 文件：{'✓ 已生成' if dot_exists else '✗ 未生成'}\n"
+        info_text += f"• SVG 文件：{'✓ 已生成' if svg_exists else '✗ 未生成'}\n\n"
+        
+        if svg_exists:
+            info_text += "可以打开剧情图预览。\n\n"
+            info_text += "操作说明：\n"
+            info_text += "• 双击文件名：编辑剧情文件\n"
+            info_text += "• 点击下方按钮：打开可视化预览\n"
         else:
-            # JSON解析失败
-            error_msg = "JSON格式错误\n\n"
-            error_msg += "常见问题和解决方案:\n"
-            error_msg += "• 检查是否有多余的逗号\n"
-            error_msg += "• 确保所有字符串都用双引号包围\n"
-            error_msg += "• 检查括号和大括号是否匹配\n"
-            error_msg += "• 确保最后一个元素后没有逗号\n\n"
-            error_msg += "建议使用JSON格式验证工具检查文件格式。"
-            self._show_json_error(error_msg)
+            info_text += "需要先生成预览文件才能查看剧情图。\n\n"
+            info_text += "操作说明：\n"
+            info_text += "• 双击文件名：编辑剧情文件\n"
+            info_text += "• 点击下方按钮：生成并打开预览\n"
+        
+        self.content_text.config(state=tk.NORMAL)
+        self.content_text.delete(1.0, tk.END)
+        self.content_text.insert(1.0, info_text)
+        self.content_text.config(state=tk.DISABLED)
+        
+        # 添加预览按钮
+        self._add_preview_button(campaign.name, story_name, svg_exists)
     
-    def _show_json_error(self, error_message):
-        """显示JSON错误信息"""
+    def _add_preview_button(self, campaign_name: str, story_name: str, svg_exists: bool):
+        """添加预览按钮到内容区域"""
+        # 移除之前的按钮（如果存在）
+        if hasattr(self, '_preview_button_frame'):
+            self._preview_button_frame.destroy()
+        
+        # 创建按钮框架
+        self._preview_button_frame = tk.Frame(self.text_frame)
+        self._preview_button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+        
+        if svg_exists:
+            # 如果预览文件存在，显示打开预览按钮
+            preview_btn = create_themed_button(
+                self._preview_button_frame,
+                text="🌐 打开剧情图预览",
+                command=lambda: self._open_story_preview(campaign_name, story_name)
+            )
+            preview_btn.pack(side=tk.LEFT, padx=5)
+        else:
+            # 如果预览文件不存在，显示生成预览按钮
+            generate_btn = create_themed_button(
+                self._preview_button_frame,
+                text="🔄 生成预览文件",
+                command=lambda: self._generate_and_open_preview(campaign_name, story_name)
+            )
+            generate_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 添加刷新按钮
+        refresh_btn = create_themed_button(
+            self._preview_button_frame,
+            text="🔄 刷新状态",
+            command=lambda: self.on_file_select(None)  # 重新加载当前文件信息
+        )
+        refresh_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def _open_story_preview(self, campaign_name: str, story_name: str):
+        """打开剧情预览"""
+        success = self.web_preview.open_story_preview(campaign_name, story_name)
+        
+        if success:
+            show_themed_info(self.root, "预览已打开", 
+                           f"剧情预览已在浏览器中打开\n\n"
+                           f"跑团：{campaign_name}\n"
+                           f"剧情：{story_name}\n\n"
+                           f"关闭浏览器标签页后服务器将自动停止")
+        else:
+            show_themed_error(self.root, "打开失败", 
+                            "无法打开剧情预览\n\n"
+                            "可能的原因：\n"
+                            "• 预览文件不存在或损坏\n"
+                            "• 无法启动本地服务器\n"
+                            "• 无法打开浏览器")
+    
+    def _generate_and_open_preview(self, campaign_name: str, story_name: str):
+        """生成预览文件并打开预览"""
+        from src.ui.web_preview.preview_generator import PreviewGenerator
+        
+        # 显示生成进度
+        progress_dialog = create_themed_dialog(self.root, "生成预览", "400x150")
+        progress_label = tk.Label(progress_dialog, text="正在生成预览文件，请稍候...")
+        progress_label.pack(expand=True)
+        
+        # 在后台线程中生成预览
+        import threading
+        
+        def generate_preview():
+            generator = PreviewGenerator()
+            success = generator.generate_preview_for_story(campaign_name, story_name)
+            
+            # 在主线程中更新UI
+            self.root.after(0, lambda: self._on_preview_generated(progress_dialog, success, campaign_name, story_name))
+        
+        thread = threading.Thread(target=generate_preview, daemon=True)
+        thread.start()
+    
+    def _on_preview_generated(self, progress_dialog, success: bool, campaign_name: str, story_name: str):
+        """预览生成完成后的回调"""
+        progress_dialog.destroy()
+        
+        if success:
+            # 刷新文件信息显示
+            self.on_file_select(None)
+            
+            # 打开预览
+            self._open_story_preview(campaign_name, story_name)
+        else:
+            show_themed_error(self.root, "生成失败", 
+                            "无法生成预览文件\n\n"
+                            "可能的原因：\n"
+                            "• JSON 文件格式错误\n"
+                            "• 缺少必要的工具\n"
+                            "• 文件权限问题")
+    
+    def _show_preview_error(self, error_message: str):
+        """显示预览错误信息"""
         # 显示文本区域，隐藏图片区域
         self.text_frame.pack(fill=tk.BOTH, expand=True)
         self.image_frame.pack_forget()
         
         self.content_text.config(state=tk.NORMAL)
         self.content_text.delete(1.0, tk.END)
-        self.content_text.insert(1.0, error_message)
+        self.content_text.insert(1.0, f"预览错误：{error_message}")
         self.content_text.config(state=tk.DISABLED)
+    
+    def _on_preview_server_stopped(self):
+        """预览服务器停止时的回调"""
+        # 可以在这里添加UI状态更新逻辑
+        pass
 
     def show_image_content(self, file_path):
         """在右侧显示图片内容
@@ -703,6 +829,11 @@ class App:
         self.image_label.config(image="", text="选择地图文件查看")
         theme_manager = get_theme_manager()
         theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
+        
+        # 清理预览按钮
+        if hasattr(self, '_preview_button_frame'):
+            self._preview_button_frame.destroy()
+            delattr(self, '_preview_button_frame')
 
     def open_selected_file(self, event):
         """双击文件打开，notes 分类双击文件夹进入"""
@@ -781,6 +912,15 @@ class App:
             show_themed_info(self.root, "删除成功", f"{file_type}【{actual_name}】已从软件中删除\n\n实际文件仍保存在磁盘上")
         else:
             show_themed_error(self.root, "删除失败", "无法删除文件")
+    
+    def _on_window_close(self):
+        """窗口关闭时的清理工作"""
+        # 停止Web预览服务器
+        if self.web_preview:
+            self.web_preview.stop_server()
+        
+        # 关闭主窗口
+        self.root.destroy()
 
 
 if __name__ == "__main__":
