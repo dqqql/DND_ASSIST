@@ -15,12 +15,15 @@ digraph Story {
     "treasure_room" [label="宝藏室\n[treasure_room]", fillcolor="#4CAF50", border="none"];
     "end" [label="冒险结束\n[end]", fillcolor="#4CAF50", border="none"];
 
-    "left_path" -> "spider_encounter" [color="#333333"];
-    "right_path" -> "skeleton_encounter" [color="#333333"];
-    "spider_encounter" -> "treasure_room" [color="#333333"];
-    "skeleton_encounter" -> "treasure_room" [color="#333333"];
-    "treasure_room" -> "end" [color="#333333"];
+    "start" -> "choice_01";
+    "left_path" -> "spider_encounter";
+    "right_path" -> "skeleton_encounter";
+    "spider_encounter" -> "treasure_room";
+    "skeleton_encounter" -> "treasure_room";
+    "treasure_room" -> "end";
 
     "start" -> "left_path" [label="走左边的主通道", color="#FF9800", fontcolor="#FF9800"];
+    "left_path" -> "spider_encounter" [style=dashed, color="#9E9E9E"];
     "start" -> "right_path" [label="走右边的小径", color="#FF9800", fontcolor="#FF9800"];
+    "right_path" -> "skeleton_encounter" [style=dashed, color="#9E9E9E"];
 }

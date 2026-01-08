@@ -1,0 +1,21 @@
+{
+  "title": "新剧情",
+  "nodes": [
+    {
+      "id": "node_01",
+      "type": "main",
+      "title": "获取装备",
+      "content": "",
+      "next": "node_02",
+      "branches": []
+    },
+    {
+      "id": "node_02",
+      "type": "main",
+      "title": "挑战魔王",
+      "content": "",
+      "next": null,
+      "branches": []
+    }
+  ]
+}

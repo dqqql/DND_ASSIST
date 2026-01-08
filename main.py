@@ -1,11 +1,14 @@
 import os
-import shutil
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import filedialog
 from PIL import Image, ImageTk
 import subprocess
 import sys
-import json
+from pathlib import Path
+
+# 导入core层服务
+from src.core import CampaignService, FileManagerService, StoryGraphService
+from src.core.config import CATEGORIES, IMAGE_PREVIEW_MAX_WIDTH, IMAGE_PREVIEW_MAX_HEIGHT
 
 # 导入主题系统
 from src.ui.theme_integration import (
@@ -18,37 +21,9 @@ from src.ui.theme_utils import (
 )
 from src.ui.theme_system import get_theme_manager
 
-# ==================== 常量定义区域 ====================
-# Prompt 2: 所有路径和分类相关的常量集中在文件顶部
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data", "campaigns")
-
-CATEGORIES = {
-    "人物卡": "characters",
-    "怪物卡": "monsters",
-    "地图": "maps",
-    "剧情": "notes"
-}
-
-# 文件名非法字符（Prompt 9）
-INVALID_FILENAME_CHARS = r'/\:*?"<>|'
-
-# 图片预览最大尺寸（Prompt 6）
-IMAGE_PREVIEW_MAX_WIDTH = 600
-IMAGE_PREVIEW_MAX_HEIGHT = 600
-
-# 隐藏文件列表文件名
-HIDDEN_FILES_LIST = ".hidden_files"
-
-# ==================== 常量定义结束 ====================
-
-
-def ensure_dirs():
-    os.makedirs(DATA_DIR, exist_ok=True)
-
 
 def open_file_with_system(path):
+    """使用系统默认程序打开文件"""
     if sys.platform.startswith("win"):
         os.startfile(path)
     elif sys.platform.startswith("darwin"):
@@ -63,14 +38,16 @@ class App:
         self.root.title("DND 跑团管理器")
         self.root.geometry("1170x650")
 
-        ensure_dirs()
+        # 初始化core层服务
+        self.campaign_service = CampaignService()
+        self.file_service = FileManagerService(self.campaign_service)
+        self.story_service = StoryGraphService()
 
-        self.current_campaign = None
+        # UI状态变量
         self.current_category = None
         self.category_buttons = {}  # 存储分类按钮
         self.category_handlers = {}  # 存储分类按钮的交互处理器
-        self.current_notes_path = ""  # Prompt 5: notes 当前路径（相对于 notes 根目录）
-        self.hidden_files = {}  # 存储每个跑团分类的隐藏文件列表
+        self.current_notes_path = ""  # notes 当前路径（相对于 notes 根目录）
 
         self.build_ui()
         self.load_campaigns()
@@ -216,12 +193,14 @@ class App:
         self.image_label.pack(fill=tk.BOTH, expand=True, padx=text_padding, pady=text_padding)
 
     def load_campaigns(self):
+        """加载跑团列表"""
         self.campaign_list.delete(0, tk.END)
-        for name in os.listdir(DATA_DIR):
-            if os.path.isdir(os.path.join(DATA_DIR, name)):
-                self.campaign_list.insert(tk.END, name)
+        campaigns = self.campaign_service.list_campaigns()
+        for name in campaigns:
+            self.campaign_list.insert(tk.END, name)
 
     def create_campaign(self):
+        """创建新跑团"""
         # 创建主题化对话框
         dialog = create_themed_dialog(self.root, "新建跑团", "450x180")
         
@@ -251,37 +230,42 @@ class App:
         name = result["name"]
         if not name:
             return
-        path = os.path.join(DATA_DIR, name)
-        if os.path.exists(path):
-            show_themed_error(self.root, "错误", "跑团已存在")
-            return
-
-        os.makedirs(path)
-        for folder in CATEGORIES.values():
-            os.makedirs(os.path.join(path, folder))
-
-        self.load_campaigns()
+        
+        # 使用core层服务创建跑团
+        if self.campaign_service.create_campaign(name):
+            self.load_campaigns()
+        else:
+            show_themed_error(self.root, "错误", "跑团已存在或创建失败")
 
     def delete_campaign(self):
+        """删除跑团"""
         sel = self.campaign_list.curselection()
         if not sel:
             return
+        
         name = self.campaign_list.get(sel[0])
-        path = os.path.join(DATA_DIR, name)
+        
         if ask_themed_yesno(self.root, "确认", f"确定删除跑团【{name}】？"):
-            shutil.rmtree(path)
-            self.current_campaign = None
-            self.clear_categories()
-            self.file_list.delete(0, tk.END)
-            self.load_campaigns()
+            if self.campaign_service.delete_campaign(name):
+                self.clear_categories()
+                self.file_list.delete(0, tk.END)
+                self.load_campaigns()
+            else:
+                show_themed_error(self.root, "错误", "删除跑团失败")
 
     def on_campaign_select(self, event):
+        """跑团选择事件"""
         sel = self.campaign_list.curselection()
         if not sel:
             return
-        self.current_campaign = self.campaign_list.get(sel[0])
-        self.load_hidden_files()  # 加载隐藏文件列表
-        self.show_categories()
+        
+        name = self.campaign_list.get(sel[0])
+        campaign = self.campaign_service.select_campaign(name)
+        
+        if campaign:
+            self.show_categories()
+        else:
+            show_themed_error(self.root, "错误", "选择跑团失败")
 
     def clear_categories(self):
         for w in self.category_frame.winfo_children():
@@ -412,76 +396,44 @@ class App:
             apply_consistent_theming(self.root)
 
     def load_files(self):
-        """Prompt 3: 文件列表按文件名升序排序
-           Prompt 4: notes 支持子文件夹，文件夹显示在前"""
+        """加载文件列表"""
         self.file_list.delete(0, tk.END)
         self.clear_content_viewer()
-        if not self.current_campaign or not self.current_category:
+        
+        if not self.current_category:
             return
         
-        base_path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
-        current_path = os.path.join(base_path, self.current_notes_path) if self.current_category == "notes" else base_path
+        # 使用core层服务获取文件列表
+        files = self.file_service.list_files(self.current_category, self.current_notes_path)
         
-        if not os.path.exists(current_path):
-            return
-        
-        items = os.listdir(current_path)
-        
-        # 获取当前路径的隐藏文件列表
-        hidden_key = f"{self.current_category}:{self.current_notes_path}" if self.current_category == "notes" else self.current_category
-        hidden_set = self.hidden_files.get(hidden_key, set())
-        
-        # Prompt 4: notes 分类支持子文件夹
-        if self.current_category == "notes":
-            folders = []
-            files = []
-            for item in items:
-                # 跳过隐藏的文件和文件夹
-                if item in hidden_set:
-                    continue
-                    
-                item_path = os.path.join(current_path, item)
-                if os.path.isdir(item_path):
-                    folders.append(item)
-                else:
-                    # 只显示 .txt 和 .json 文件，过滤掉 .dot 和 .svg 文件
-                    if item.lower().endswith(('.txt', '.json')):
-                        files.append(item)
-            
-            # Prompt 3: 排序
-            folders.sort()
-            files.sort()
-            
-            # Prompt 4: 文件夹显示在前，格式为 "[DIR] 文件夹名"
-            for folder in folders:
-                self.file_list.insert(tk.END, f"[DIR] {folder}")
-            for file in files:
-                self.file_list.insert(tk.END, file)
-        else:
-            # 其他分类只显示文件，按文件名排序，过滤隐藏文件
-            visible_items = [item for item in items if item not in hidden_set]
-            visible_items.sort()
-            for item in visible_items:
-                self.file_list.insert(tk.END, item)
+        for file_info in files:
+            display_name = file_info.get_display_name()
+            self.file_list.insert(tk.END, display_name)
 
     def import_file(self):
-        if not self.current_campaign or not self.current_category:
+        """导入文件"""
+        if not self.current_category:
             return
+        
         files = filedialog.askopenfilenames()
         if not files:
             return
-        target_dir = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
-        for f in files:
-            shutil.copy(f, target_dir)
-        self.load_files()
+        
+        success_count = 0
+        for file_path in files:
+            if self.file_service.import_file(self.current_category, file_path, self.current_notes_path):
+                success_count += 1
+        
+        if success_count > 0:
+            self.load_files()
+            show_themed_info(self.root, "导入完成", f"成功导入 {success_count} 个文件")
+        else:
+            show_themed_error(self.root, "导入失败", "没有文件被成功导入")
 
     def get_template_content(self, category):
-        """根据分类返回模板内容，如果不需要模板则返回空字符串"""
-        if category == "characters":
-            return "姓名: \n\n种族: \n\n职业: \n\n技能: \n\n装备: \n\n背景: \n\n"
-        elif category == "monsters":
-            return "姓名: \n\nCR: \n\n属性: \n\n攻击: \n\n特性: 无\n\n"
-        return ""
+        """根据分类返回模板内容（保留用于向后兼容）"""
+        from src.core.config import get_template_content
+        return get_template_content(category)
 
     def select_file_type(self):
         """在notes分类中选择文件类型"""
@@ -535,60 +487,13 @@ class App:
         return result["file_type"]
 
     def get_json_story_template(self):
-        """生成JSON剧情文件模板"""
-        import json
-        
-        template = {
-            "title": "新剧情",
-            "nodes": [
-                {
-                    "id": "main_01",
-                    "type": "main",
-                    "title": "开始",
-                    "content": "你们的冒险从这里开始...",
-                    "next": "main_02",
-                    "branches": [
-                        {
-                            "choice": "选择路径A",
-                            "entry": "branch_A_01",
-                            "exit": "main_02"
-                        },
-                        {
-                            "choice": "选择路径B", 
-                            "entry": "branch_B_01",
-                            "exit": "main_02"
-                        }
-                    ]
-                },
-                {
-                    "id": "main_02",
-                    "type": "main",
-                    "title": "汇合点",
-                    "content": "无论选择哪条路径，你们都来到了这里...",
-                    "next": None,
-                    "branches": []
-                },
-                {
-                    "id": "branch_A_01",
-                    "type": "branch",
-                    "title": "路径A - 第一步",
-                    "content": "你们选择了路径A，遇到了...",
-                    "next": None
-                },
-                {
-                    "id": "branch_B_01", 
-                    "type": "branch",
-                    "title": "路径B - 第一步",
-                    "content": "你们选择了路径B，发现了...",
-                    "next": None
-                }
-            ]
-        }
-        
-        return json.dumps(template, ensure_ascii=False, indent=2)
+        """生成JSON剧情文件模板（保留用于向后兼容）"""
+        from src.core.config import get_json_story_template
+        return get_json_story_template()
 
     def create_file(self):
-        if not self.current_campaign or not self.current_category:
+        """创建文件"""
+        if not self.current_category:
             return
         
         # 如果是notes分类，先选择文件类型
@@ -629,42 +534,26 @@ class App:
         if not filename:
             return
         
-        # Prompt 9: 文件名合法性检查
-        for char in INVALID_FILENAME_CHARS:
-            if char in filename:
-                show_themed_error(self.root, "错误", f"文件名不能包含以下字符: {INVALID_FILENAME_CHARS}")
-                return
-        
         # 根据文件类型添加扩展名
         if file_type == "json":
-            filename = filename + ".json"
+            if not filename.endswith('.json'):
+                filename = filename + ".json"
         else:
-            filename = filename + ".txt"
+            if not filename.endswith('.txt'):
+                filename = filename + ".txt"
         
-        base_dir = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
-        target_dir = os.path.join(base_dir, self.current_notes_path) if self.current_category == "notes" else base_dir
-        file_path = os.path.join(target_dir, filename)
-        
-        if os.path.exists(file_path):
-            show_themed_error(self.root, "错误", "文件已存在")
-            return
-        
-        # 获取模板内容并创建文件
-        if file_type == "json":
-            template_content = self.get_json_story_template()
+        # 使用core层服务创建文件
+        if self.file_service.create_file(self.current_category, filename, self.current_notes_path):
+            self.load_files()
+            # 创建后自动打开文件
+            file_path = self.file_service.get_file_path(self.current_category, filename, self.current_notes_path)
+            if file_path:
+                open_file_with_system(str(file_path))
         else:
-            template_content = self.get_template_content(self.current_category)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(template_content)
-        
-        self.load_files()
-        # 创建后自动打开文件
-        open_file_with_system(file_path)
+            show_themed_error(self.root, "错误", "文件创建失败或文件已存在")
 
     def on_file_select(self, event):
-        """文件列表选择事件处理
-           Prompt 5: notes 分类支持双击文件夹进入"""
+        """文件列表选择事件处理"""
         sel = self.file_list.curselection()
         if not sel:
             self.clear_content_viewer()
@@ -672,39 +561,36 @@ class App:
         
         display_name = self.file_list.get(sel[0])
         
-        # Prompt 4 & 5: 处理 notes 文件夹
+        # 处理 notes 文件夹
         if self.current_category == "notes" and display_name.startswith("[DIR] "):
             # 文件夹不显示内容
             self.clear_content_viewer()
             return
         
-        filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
-        
-        base_path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
-        current_path = os.path.join(base_path, self.current_notes_path) if self.current_category == "notes" else base_path
-        file_path = os.path.join(current_path, filename)
+        # 获取文件路径
+        file_path = self.file_service.get_file_path(self.current_category, display_name, self.current_notes_path)
+        if not file_path:
+            self.clear_content_viewer()
+            return
 
-        # 如果是文本文件，显示内容
-        if self.current_category in ["characters", "monsters", "notes"] and filename.endswith('.txt'):
+        # 根据文件类型显示内容
+        if self.current_category in ["characters", "monsters"] and str(file_path).endswith('.txt'):
             self.show_text_content(file_path)
-        # 如果是JSON剧情文件，显示结构化内容
-        elif self.current_category == "notes" and filename.endswith('.json'):
-            self.show_json_story_content(file_path)
-        # 如果是地图文件，显示图片
+        elif self.current_category == "notes":
+            if str(file_path).endswith('.json'):
+                self.show_json_story_content(file_path)
+            elif str(file_path).endswith('.txt'):
+                self.show_text_content(file_path)
         elif self.current_category == "maps":
             self.show_image_content(file_path)
         else:
             self.clear_content_viewer()
 
     def show_text_content(self, file_path):
-        """显示文本文件内容
-           Prompt 7: 每次从磁盘重新读取
-           Prompt 8: 错误处理不弹窗"""
-        try:
-            # Prompt 7: 每次从磁盘重新读取，不使用缓存
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
+        """显示文本文件内容"""
+        content = self.file_service.read_text_file(file_path)
+        
+        if content is not None:
             # 显示文本区域，隐藏图片区域
             self.text_frame.pack(fill=tk.BOTH, expand=True)
             self.image_frame.pack_forget()
@@ -713,28 +599,23 @@ class App:
             self.content_text.delete(1.0, tk.END)
             self.content_text.insert(1.0, content)
             self.content_text.config(state=tk.DISABLED)
-        except Exception as e:
-            # Prompt 8: 错误信息显示在文本区域，不弹窗
+        else:
+            # 错误信息显示在文本区域
             self.text_frame.pack(fill=tk.BOTH, expand=True)
             self.image_frame.pack_forget()
             
             self.content_text.config(state=tk.NORMAL)
             self.content_text.delete(1.0, tk.END)
-            self.content_text.insert(1.0, f"无法读取文件: {str(e)}")
+            self.content_text.insert(1.0, "无法读取文件")
             self.content_text.config(state=tk.DISABLED)
 
     def show_json_story_content(self, file_path):
         """显示JSON剧情文件的统计信息"""
-        try:
-            # 从磁盘重新读取文件内容
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # 解析JSON内容
-            story_data = json.loads(content)
-            
-            # 构建统计信息显示文本
-            display_text = self._build_story_statistics(story_data, file_path)
+        story = self.story_service.parse_json_story(file_path)
+        
+        if story:
+            # 生成统计文本
+            display_text = self.story_service.generate_statistics_text(story, file_path)
             
             # 显示文本区域，隐藏图片区域
             self.text_frame.pack(fill=tk.BOTH, expand=True)
@@ -744,10 +625,9 @@ class App:
             self.content_text.delete(1.0, tk.END)
             self.content_text.insert(1.0, display_text)
             self.content_text.config(state=tk.DISABLED)
-            
-        except json.JSONDecodeError as e:
-            # JSON格式错误处理
-            error_msg = f"JSON格式错误: {str(e)}\n\n"
+        else:
+            # JSON解析失败
+            error_msg = "JSON格式错误\n\n"
             error_msg += "常见问题和解决方案:\n"
             error_msg += "• 检查是否有多余的逗号\n"
             error_msg += "• 确保所有字符串都用双引号包围\n"
@@ -755,174 +635,6 @@ class App:
             error_msg += "• 确保最后一个元素后没有逗号\n\n"
             error_msg += "建议使用JSON格式验证工具检查文件格式。"
             self._show_json_error(error_msg)
-        except FileNotFoundError:
-            self._show_json_error("文件不存在，请检查文件路径。")
-        except PermissionError:
-            self._show_json_error("没有权限读取文件，请检查文件权限。")
-        except UnicodeDecodeError:
-            self._show_json_error("文件编码错误，请确保文件使用UTF-8编码保存。")
-        except Exception as e:
-            # 其他错误处理
-            self._show_json_error(f"无法读取文件: {str(e)}\n\n请检查文件是否损坏或格式是否正确。")
-    
-    def _build_story_statistics(self, story_data, file_path):
-        """构建剧情统计信息"""
-        lines = []
-        
-        # 文件基本信息
-        filename = os.path.basename(file_path)
-        lines.append("=" * 50)
-        lines.append(f"剧情文件: {filename}")
-        lines.append("=" * 50)
-        lines.append("")
-        
-        # 剧情标题
-        title = story_data.get("title", "未命名剧情").strip()
-        lines.append(f"📖 剧情标题: {title}")
-        lines.append("")
-        
-        # 获取所有节点
-        nodes = story_data.get("nodes", [])
-        
-        if not nodes:
-            lines.append("⚠️  警告: 剧情中没有找到任何节点")
-            return "\n".join(lines)
-        
-        # 统计不同类型的节点
-        main_nodes = [node for node in nodes if node.get("type") == "main"]
-        branch_nodes = [node for node in nodes if node.get("type") == "branch"]
-        other_nodes = [node for node in nodes if node.get("type") not in ["main", "branch"]]
-        
-        # 基本统计
-        lines.append("📊 基本统计:")
-        lines.append(f"   • 节点总数: {len(nodes)}")
-        lines.append(f"   • 主线节点: {len(main_nodes)}")
-        lines.append(f"   • 分支节点: {len(branch_nodes)}")
-        if other_nodes:
-            lines.append(f"   • 其他节点: {len(other_nodes)}")
-        lines.append("")
-        
-        # 分支统计
-        total_branches = 0
-        nodes_with_branches = 0
-        for node in main_nodes:
-            branches = node.get("branches", [])
-            if branches:
-                nodes_with_branches += 1
-                total_branches += len(branches)
-        
-        lines.append("🌿 分支统计:")
-        lines.append(f"   • 总分支数: {total_branches}")
-        lines.append(f"   • 有分支的主线节点: {nodes_with_branches}")
-        if nodes_with_branches > 0:
-            avg_branches = total_branches / nodes_with_branches
-            lines.append(f"   • 平均每个分支点的选择数: {avg_branches:.1f}")
-        lines.append("")
-        
-        # 内容完整性检查
-        lines.append("✅ 内容完整性:")
-        
-        # 检查空标题和空内容
-        empty_title_count = 0
-        empty_content_count = 0
-        meaningful_nodes = 0
-        
-        for node in nodes:
-            title = node.get("title", "").strip()
-            content = node.get("content", "").strip()
-            
-            if not title or title in ["新节点", "未命名节点", "未命名"]:
-                empty_title_count += 1
-            if not content:
-                empty_content_count += 1
-            
-            # 判断是否是有意义的节点
-            if title and title not in ["新节点", "未命名节点", "未命名"]:
-                meaningful_nodes += 1
-        
-        lines.append(f"   • 有意义的节点: {meaningful_nodes}/{len(nodes)}")
-        if empty_title_count > 0:
-            lines.append(f"   • 空标题节点: {empty_title_count}")
-        if empty_content_count > 0:
-            lines.append(f"   • 空内容节点: {empty_content_count}")
-        
-        # 连接性检查
-        connected_nodes = set()
-        orphaned_nodes = []
-        
-        # 找到所有被引用的节点
-        for node in nodes:
-            next_id = node.get("next")
-            if next_id:
-                connected_nodes.add(next_id)
-            
-            for branch in node.get("branches", []):
-                entry_id = branch.get("entry")
-                exit_id = branch.get("exit")
-                if entry_id:
-                    connected_nodes.add(entry_id)
-                if exit_id:
-                    connected_nodes.add(exit_id)
-        
-        # 找到孤立节点（除了第一个节点）
-        node_ids = [node.get("id") for node in nodes if node.get("id")]
-        if node_ids:
-            first_node_id = node_ids[0]  # 假设第一个节点是起始节点
-            for node_id in node_ids[1:]:  # 跳过第一个节点
-                if node_id not in connected_nodes:
-                    orphaned_nodes.append(node_id)
-        
-        if orphaned_nodes:
-            lines.append(f"   • 孤立节点: {len(orphaned_nodes)} ({', '.join(orphaned_nodes[:3])}{'...' if len(orphaned_nodes) > 3 else ''})")
-        else:
-            lines.append("   • 所有节点都已连接")
-        
-        lines.append("")
-        
-        # 主线节点列表
-        if main_nodes:
-            lines.append("🎯 主线流程:")
-            for i, node in enumerate(main_nodes[:5], 1):  # 只显示前5个
-                title = node.get("title", "未命名")
-                node_id = node.get("id", "")
-                branches_count = len(node.get("branches", []))
-                
-                branch_info = f" ({branches_count}个选择)" if branches_count > 0 else ""
-                lines.append(f"   {i}. {title} [{node_id}]{branch_info}")
-            
-            if len(main_nodes) > 5:
-                lines.append(f"   ... 还有 {len(main_nodes) - 5} 个主线节点")
-            lines.append("")
-        
-        # 检查是否有对应的SVG文件
-        svg_path = self._get_svg_path_for_json(file_path)
-        if svg_path and os.path.exists(svg_path):
-            lines.append("")
-            lines.append("📈 流程图: 已生成，可双击文件名在外部查看")
-        
-        return "\n".join(lines)
-    
-    def _get_svg_path_for_json(self, json_file_path):
-        """根据JSON文件路径查找对应的SVG文件路径"""
-        try:
-            # 获取文件名（不含扩展名）
-            filename = os.path.basename(json_file_path)
-            filename_without_ext = os.path.splitext(filename)[0]
-            
-            # 在当前跑团的notes文件夹中查找对应的SVG文件
-            notes_dir = os.path.join(DATA_DIR, self.current_campaign, "notes")
-            
-            if not os.path.exists(notes_dir):
-                return None
-            
-            # 直接在notes目录中查找SVG文件
-            svg_path = os.path.join(notes_dir, f"{filename_without_ext}.svg")
-            if os.path.exists(svg_path):
-                return svg_path
-            
-            return None
-        except Exception:
-            return None
     
     def _show_json_error(self, error_message):
         """显示JSON错误信息"""
@@ -993,31 +705,28 @@ class App:
         theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
 
     def open_selected_file(self, event):
-        """Prompt 5: 双击文件打开，notes 分类双击文件夹进入"""
+        """双击文件打开，notes 分类双击文件夹进入"""
         sel = self.file_list.curselection()
         if not sel:
             return
         
         display_name = self.file_list.get(sel[0])
         
-        # Prompt 5: notes 分类双击文件夹进入
+        # notes 分类双击文件夹进入
         if self.current_category == "notes" and display_name.startswith("[DIR] "):
             folder_name = display_name.replace("[DIR] ", "")
             self.enter_notes_folder(folder_name)
             return
         
-        filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
-        
-        base_path = os.path.join(DATA_DIR, self.current_campaign, self.current_category)
-        current_path = os.path.join(base_path, self.current_notes_path) if self.current_category == "notes" else base_path
-        path = os.path.join(current_path, filename)
-        
-        open_file_with_system(path)
+        # 获取文件路径
+        file_path = self.file_service.get_file_path(self.current_category, display_name, self.current_notes_path)
+        if file_path:
+            open_file_with_system(str(file_path))
     
     def enter_notes_folder(self, folder_name):
-        """Prompt 5: 进入 notes 子文件夹"""
+        """进入 notes 子文件夹"""
         if self.current_notes_path:
-            self.current_notes_path = os.path.join(self.current_notes_path, folder_name)
+            self.current_notes_path = str(Path(self.current_notes_path) / folder_name)
         else:
             self.current_notes_path = folder_name
         
@@ -1025,95 +734,53 @@ class App:
         self.load_files()
     
     def go_back_notes(self):
-        """Prompt 5: 返回 notes 上级目录"""
+        """返回 notes 上级目录"""
         if not self.current_notes_path:
             return
         
         # 返回上级目录
-        parent = os.path.dirname(self.current_notes_path)
-        self.current_notes_path = parent
+        parent_path = Path(self.current_notes_path).parent
+        self.current_notes_path = str(parent_path) if str(parent_path) != "." else ""
         
         self.update_back_button()
         self.load_files()
     
     def update_back_button(self):
-        """Prompt 5: 更新返回上级按钮的显示状态"""
+        """更新返回上级按钮的显示状态"""
         from src.ui.layout_system import get_component_spacing
         
         if self.current_category == "notes" and self.current_notes_path:
-            # 在 notes 分类且不在根目录时显示，使用网格对齐的间距
+            # 在 notes 分类且不在根目录时显示
             back_button_spacing = get_component_spacing("panel")
             self.back_button.pack(side=tk.RIGHT, padx=(0, back_button_spacing))
         else:
             # 其他情况隐藏
             self.back_button.pack_forget()
     
-    def load_hidden_files(self):
-        """加载当前跑团的隐藏文件列表"""
-        if not self.current_campaign:
-            return
-        
-        hidden_file_path = os.path.join(DATA_DIR, self.current_campaign, HIDDEN_FILES_LIST)
-        self.hidden_files = {}
-        
-        if os.path.exists(hidden_file_path):
-            try:
-                with open(hidden_file_path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and ':' in line:
-                            key, filename = line.split(':', 1)
-                            if key not in self.hidden_files:
-                                self.hidden_files[key] = set()
-                            self.hidden_files[key].add(filename)
-            except Exception:
-                # 如果读取失败，使用空的隐藏列表
-                self.hidden_files = {}
-    
-    def save_hidden_files(self):
-        """保存当前跑团的隐藏文件列表"""
-        if not self.current_campaign:
-            return
-        
-        hidden_file_path = os.path.join(DATA_DIR, self.current_campaign, HIDDEN_FILES_LIST)
-        
-        try:
-            with open(hidden_file_path, 'w', encoding='utf-8') as f:
-                for key, filenames in self.hidden_files.items():
-                    for filename in filenames:
-                        f.write(f"{key}:{filename}\n")
-        except Exception:
-            # 保存失败时静默处理
-            pass
-    
     def delete_file(self):
-        """删除选中的文件（仅从界面隐藏，不删除实际文件）"""
+        """删除选中的文件（软删除，添加到隐藏列表）"""
         sel = self.file_list.curselection()
         if not sel:
             show_themed_info(self.root, "提示", "请先选择要删除的文件")
             return
         
         display_name = self.file_list.get(sel[0])
-        filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
         
         # 确认删除
         file_type = "文件夹" if display_name.startswith("[DIR] ") else "文件"
-        if not ask_themed_yesno(self.root, "确认删除", f"确定要删除{file_type}【{filename}】吗？\n\n注意：这只会从软件中隐藏，不会删除实际文件。"):
+        actual_name = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
+        
+        if not ask_themed_yesno(self.root, "确认删除", f"确定要删除{file_type}【{actual_name}】吗？\n\n注意：这只会从软件中隐藏，不会删除实际文件。"):
             return
         
-        # 添加到隐藏列表
-        hidden_key = f"{self.current_category}:{self.current_notes_path}" if self.current_category == "notes" else self.current_category
-        if hidden_key not in self.hidden_files:
-            self.hidden_files[hidden_key] = set()
-        
-        self.hidden_files[hidden_key].add(filename)
-        self.save_hidden_files()
-        
-        # 刷新文件列表
-        self.load_files()
-        self.clear_content_viewer()
-        
-        show_themed_info(self.root, "删除成功", f"{file_type}【{filename}】已从软件中删除\n\n实际文件仍保存在磁盘上")
+        # 使用core层服务删除文件
+        if self.file_service.delete_file(self.current_category, display_name, self.current_notes_path):
+            # 刷新文件列表
+            self.load_files()
+            self.clear_content_viewer()
+            show_themed_info(self.root, "删除成功", f"{file_type}【{actual_name}】已从软件中删除\n\n实际文件仍保存在磁盘上")
+        else:
+            show_themed_error(self.root, "删除失败", "无法删除文件")
 
 
 if __name__ == "__main__":

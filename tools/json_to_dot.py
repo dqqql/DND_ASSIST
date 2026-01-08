@@ -1,91 +1,73 @@
-import json
 import sys
 import os
 from pathlib import Path
 
-# 定义颜色常量
-MAIN_COLOR = "#4CAF50"    # 主线节点：绿色
-BRANCH_COLOR = "#2196F3"  # 分支节点：蓝色
-FAIL_COLOR = "#9E9E9E"    # 虚线/失败：灰色
-CHOICE_COLOR = "#FF9800"  # 分支连线：橙色
+# 添加项目根目录到Python路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.core.story_parser import StoryGraphService
 
 def load_story(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """加载剧情文件（保留向后兼容）"""
+    story_service = StoryGraphService()
+    story = story_service.parse_json_story(path)
+    
+    if story:
+        # 转换为原始格式
+        return {
+            "title": story.title,
+            "nodes": [
+                {
+                    "id": node.id,
+                    "type": node.node_type,
+                    "title": node.title,
+                    "content": node.content,
+                    "next": node.next_id,
+                    "branches": [
+                        {
+                            "choice": branch.choice,
+                            "entry": branch.entry,
+                            "exit": branch.exit
+                        }
+                        for branch in node.branches
+                    ]
+                }
+                for node in story.nodes
+            ]
+        }
+    return {}
 
 def generate_dot(story: dict) -> str:
-    lines = []
-
-    lines.append("digraph Story {")
-    lines.append("    rankdir=TB;")      # 从上至下布局
-    lines.append("    splines=ortho;")    # 使用直角连线
-    lines.append("    nodesep=0.6;")
-    lines.append("    ranksep=0.8;")
-    lines.append("")
-    lines.append("    node [shape=box, style=filled, fontcolor=white, fontname=\"Microsoft YaHei\"];")
-    lines.append("    edge [fontname=\"Microsoft YaHei\"];")
-    lines.append("")
-
-    nodes = {n["id"]: n for n in story.get("nodes", [])}
-
-    # ---------- 1. 节点定义 ----------
-    for node in nodes.values():
-        nid = node["id"]
-        title = node.get("title", "")
-        label = f"{title}\\n[{nid}]"
-
-        # 根据类型决定颜色
-        if node.get("type") == "main":
-            color = MAIN_COLOR
-        else:
-            color = BRANCH_COLOR
-
-        lines.append(
-            f'    "{nid}" [label="{label}", fillcolor="{color}", border="none"];'
+    """生成DOT格式内容（保留向后兼容）"""
+    story_service = StoryGraphService()
+    
+    # 创建StoryGraph对象
+    from src.core.models import StoryGraph, StoryNode, StoryBranch
+    
+    graph = StoryGraph(title=story.get("title", ""))
+    
+    for node_data in story.get("nodes", []):
+        branches = []
+        for branch_data in node_data.get("branches", []):
+            branch = StoryBranch(
+                choice=branch_data.get("choice", ""),
+                entry=branch_data.get("entry"),
+                exit=branch_data.get("exit")
+            )
+            branches.append(branch)
+        
+        node = StoryNode(
+            id=node_data.get("id", ""),
+            title=node_data.get("title", ""),
+            content=node_data.get("content", ""),
+            node_type=node_data.get("type", "main"),
+            next_id=node_data.get("next"),
+            branches=branches
         )
-
-    lines.append("")
-
-    # ---------- 2. 节点间的 Next 连线 (实线) ----------
-    # 修改点：不再限制只有 main 节点能连线，让 branch 节点也能连向下一个节点
-    for node in nodes.values():
-        next_id = node.get("next")
-        if next_id and next_id in nodes:
-            lines.append(f'    "{node["id"]}" -> "{next_id}" [color="#333333"];')
-
-    lines.append("")
-
-    # ---------- 3. 分支入口与逻辑回归 ----------
-    for node in nodes.values():
-        # 只有主线节点可以作为分支的起点
-        if node.get("type") != "main":
-            continue
-
-        for branch in node.get("branches", []):
-            entry = branch.get("entry")
-            exit_node = branch.get("exit")
-            choice = branch.get("choice", "选择")
-
-            # 绘制分支入口连线 (橙色实线)
-            if entry and entry in nodes:
-                lines.append(
-                    f'    "{node["id"]}" -> "{entry}" '
-                    f'[label="{choice}", color="{CHOICE_COLOR}", fontcolor="{CHOICE_COLOR}"];'
-                )
-
-                # 修改点：回归虚线的判定
-                # 只有当分支入口节点 node[entry] 自身没有设置 next 时，才绘制到 exit_node 的回归虚线。
-                # 这支持了“结婚 -> 离婚 -> 死亡”这种长链条分支。
-                if exit_node and exit_node in nodes:
-                    entry_node_data = nodes[entry]
-                    if not entry_node_data.get("next"):
-                        lines.append(
-                            f'    "{entry}" -> "{exit_node}" '
-                            f'[style=dashed, color="{FAIL_COLOR}"];'
-                        )
-
-    lines.append("}")
-    return "\n".join(lines)
+        graph.nodes.append(node)
+    
+    return story_service.generate_dot_content(graph)
 
 # --- 以下为原有的文件处理和 CLI 逻辑，保持不变 ---
 

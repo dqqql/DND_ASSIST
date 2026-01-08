@@ -11,7 +11,7 @@ digraph Story {
     "node_02" [label="长大\n[node_02]", fillcolor="#4CAF50", border="none"];
     "node_03" [label="死亡\n[node_03]", fillcolor="#4CAF50", border="none"];
 
-    "node_01" -> "node_02" [color="#333333"];
-    "node_02" -> "node_03" [color="#333333"];
+    "node_01" -> "node_02";
+    "node_02" -> "node_03";
 
 }
