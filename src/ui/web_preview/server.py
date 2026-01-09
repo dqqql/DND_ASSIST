@@ -30,6 +30,19 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         """静默处理请求日志"""
         pass
     
+    def _send_error_response(self, status_code, message):
+        """发送错误响应，避免中文编码问题"""
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        
+        error_response = json.dumps({
+            "error": message,
+            "status": status_code
+        }, ensure_ascii=False, indent=2)
+        self.wfile.write(error_response.encode('utf-8'))
+    
     def do_GET(self):
         """处理 GET 请求"""
         # 记录访问时间
@@ -38,13 +51,11 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         
         # 检查是否是 API 请求
         if self.path.startswith('/api/'):
-            # 创建 API 处理器并传递请求信息
             try:
-                # 手动处理 API 请求
                 self._handle_api_request()
             except Exception as e:
-                print(f"[ERROR] API请求处理失败: {e}")
-                self.send_error(500, f"API请求处理失败: {str(e)}")
+                print(f"[ERROR] GET API请求处理失败: {e}")
+                self._send_error_response(500, f"API请求处理失败: {str(e)}")
             return
         
         return super().do_GET()
@@ -57,13 +68,11 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         
         # 检查是否是 API 请求
         if self.path.startswith('/api/'):
-            # 创建 API 处理器并传递请求信息
             try:
-                # 手动处理 API 请求
                 self._handle_api_request()
             except Exception as e:
-                print(f"[ERROR] API请求处理失败: {e}")
-                self.send_error(500, f"API请求处理失败: {str(e)}")
+                print(f"[ERROR] POST API请求处理失败: {e}")
+                self._send_error_response(500, f"API请求处理失败: {str(e)}")
             return
         
         return super().do_POST()
@@ -76,13 +85,11 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         
         # 检查是否是 API 请求
         if self.path.startswith('/api/'):
-            # 创建 API 处理器并传递请求信息
             try:
-                # 手动处理 API 请求
                 self._handle_api_request()
             except Exception as e:
-                print(f"[ERROR] API请求处理失败: {e}")
-                self.send_error(500, f"API请求处理失败: {str(e)}")
+                print(f"[ERROR] OPTIONS API请求处理失败: {e}")
+                self._send_error_response(500, f"API请求处理失败: {str(e)}")
             return
         
         # 对于非 API 请求，返回基本的 CORS 头
@@ -94,11 +101,8 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
     
     def _handle_api_request(self):
         """处理 API 请求"""
-        # 获取 API 处理器
-        from .editor_api import EditorAPIHandler
-        
         # 获取服务实例
-        campaign_service, editor_service = EditorAPIHandler.get_services()
+        campaign_service, editor_service, file_manager_service = EditorAPIHandler.get_services()
         
         # 解析 URL
         url_parts = urlparse(self.path)
@@ -118,7 +122,7 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         
         try:
             if self.command == 'GET':
-                self._handle_api_get(path, params, campaign_service, editor_service)
+                self._handle_api_get(path, params, campaign_service, editor_service, file_manager_service)
             elif self.command == 'POST':
                 self._handle_api_post(path, campaign_service, editor_service)
             elif self.command == 'OPTIONS':
@@ -129,7 +133,7 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
             print(f"[ERROR] API处理异常: {e}")
             self._send_api_error(500, f"Internal server error: {str(e)}")
     
-    def _handle_api_get(self, path, params, campaign_service, editor_service):
+    def _handle_api_get(self, path, params, campaign_service, editor_service, file_manager_service):
         """处理 GET API 请求"""
         if path == '/api/campaigns':
             campaigns = campaign_service.list_campaigns()
@@ -164,6 +168,18 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
                 return
             statistics = editor_service.get_story_statistics(story_data)
             self._send_api_response(statistics)
+        elif path == '/api/characters':
+            self._handle_character_list(params, campaign_service, file_manager_service)
+        elif path == '/api/character':
+            self._handle_character_detail(params, campaign_service, file_manager_service)
+        elif path == '/api/monsters':
+            self._handle_monster_list(params, campaign_service, file_manager_service)
+        elif path == '/api/monster':
+            self._handle_monster_detail(params, campaign_service, file_manager_service)
+        elif path == '/api/maps':
+            self._handle_map_list(params, campaign_service, file_manager_service)
+        elif path == '/api/map':
+            self._handle_map_detail(params, campaign_service, file_manager_service)
         else:
             self._send_api_error(404, "API endpoint not found")
     
@@ -222,7 +238,6 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
     
     def _send_api_response(self, data, status_code=200):
         """发送 API 响应"""
-        import json
         response_data = json.dumps(data, ensure_ascii=False, indent=2)
         
         self.send_response(status_code)
@@ -240,6 +255,251 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
             "error": message,
             "status": status_code
         }, status_code)
+    
+    def _handle_character_list(self, params, campaign_service, file_manager_service):
+        """处理人物卡列表请求"""
+        campaign_name = params.get('campaign')
+        if not campaign_name:
+            self._send_api_error(400, "Missing campaign parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 获取人物卡文件列表
+            files = file_manager_service.list_files("characters")
+            
+            # 转换为 API 响应格式
+            characters = []
+            for file_info in files:
+                if not file_info.is_directory:
+                    characters.append({
+                        "name": file_info.get_display_name(),
+                        "filename": file_info.name,
+                        "file_type": file_info.file_type,
+                        "is_hidden": file_info.is_hidden
+                    })
+            
+            self._send_api_response({"characters": characters})
+            
+        except Exception as e:
+            self._send_api_error(500, f"获取人物卡列表失败: {str(e)}")
+    
+    def _handle_character_detail(self, params, campaign_service, file_manager_service):
+        """处理人物卡详情请求"""
+        campaign_name = params.get('campaign')
+        character_name = params.get('name')
+        
+        if not campaign_name or not character_name:
+            self._send_api_error(400, "Missing campaign or name parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 读取人物卡内容
+            content = file_manager_service.read_file_content("characters", character_name)
+            if content is None:
+                self._send_api_error(404, "Character not found")
+                return
+            
+            # 解析人物卡内容
+            character_data = self._parse_character_content(content, character_name)
+            self._send_api_response(character_data)
+            
+        except Exception as e:
+            self._send_api_error(500, f"获取人物卡失败: {str(e)}")
+    
+    def _handle_monster_list(self, params, campaign_service, file_manager_service):
+        """处理怪物卡列表请求"""
+        campaign_name = params.get('campaign')
+        if not campaign_name:
+            self._send_api_error(400, "Missing campaign parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 获取怪物卡文件列表
+            files = file_manager_service.list_files("monsters")
+            
+            # 转换为 API 响应格式
+            monsters = []
+            for file_info in files:
+                if not file_info.is_directory:
+                    monsters.append({
+                        "name": file_info.get_display_name(),
+                        "filename": file_info.name,
+                        "file_type": file_info.file_type,
+                        "is_hidden": file_info.is_hidden
+                    })
+            
+            self._send_api_response({"monsters": monsters})
+            
+        except Exception as e:
+            self._send_api_error(500, f"获取怪物卡列表失败: {str(e)}")
+    
+    def _handle_monster_detail(self, params, campaign_service, file_manager_service):
+        """处理怪物卡详情请求"""
+        campaign_name = params.get('campaign')
+        monster_name = params.get('name')
+        
+        if not campaign_name or not monster_name:
+            self._send_api_error(400, "Missing campaign or name parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 读取怪物卡内容
+            content = file_manager_service.read_file_content("monsters", monster_name)
+            if content is None:
+                self._send_api_error(404, "Monster not found")
+                return
+            
+            # 解析怪物卡内容
+            monster_data = self._parse_monster_content(content, monster_name)
+            self._send_api_response(monster_data)
+            
+        except Exception as e:
+            self._send_api_error(500, f"获取怪物卡失败: {str(e)}")
+    
+    def _handle_map_list(self, params, campaign_service, file_manager_service):
+        """处理地图列表请求"""
+        campaign_name = params.get('campaign')
+        if not campaign_name:
+            self._send_api_error(400, "Missing campaign parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 获取地图文件列表
+            files = file_manager_service.list_files("maps")
+            
+            # 转换为 API 响应格式
+            maps = []
+            for file_info in files:
+                if not file_info.is_directory:
+                    maps.append({
+                        "name": file_info.get_display_name(),
+                        "filename": file_info.name,
+                        "file_type": file_info.file_type,
+                        "is_hidden": file_info.is_hidden
+                    })
+            
+            self._send_api_response({"maps": maps})
+            
+        except Exception as e:
+            self._send_api_error(500, f"获取地图列表失败: {str(e)}")
+    
+    def _handle_map_detail(self, params, campaign_service, file_manager_service):
+        """处理地图详情请求"""
+        campaign_name = params.get('campaign')
+        map_name = params.get('name')
+        
+        if not campaign_name or not map_name:
+            self._send_api_error(400, "Missing campaign or name parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 读取地图内容
+            content = file_manager_service.read_file_content("maps", map_name)
+            if content is None:
+                self._send_api_error(404, "Map not found")
+                return
+            
+            # 获取文件信息
+            files = file_manager_service.list_files("maps")
+            file_info = next((f for f in files if f.get_display_name() == map_name), None)
+            
+            if file_info and file_info.file_type == "image":
+                # 对于图片文件，返回文件路径信息
+                map_data = {
+                    "name": map_name,
+                    "type": "image",
+                    "file_type": file_info.file_type,
+                    "filename": file_info.name,
+                    "content": None  # 图片内容通过单独的接口获取
+                }
+            else:
+                # 对于文本文件，返回内容
+                map_data = {
+                    "name": map_name,
+                    "type": "text",
+                    "file_type": file_info.file_type if file_info else "text",
+                    "filename": file_info.name if file_info else map_name,
+                    "content": content
+                }
+            
+            self._send_api_response(map_data)
+            
+        except Exception as e:
+            self._send_api_error(500, f"获取地图失败: {str(e)}")
+    
+    def _parse_character_content(self, content: str, name: str):
+        """解析人物卡内容"""
+        character_data = {
+            "name": name,
+            "type": "character",
+            "raw_content": content,
+            "fields": {}
+        }
+        
+        # 解析键值对格式的内容
+        lines = content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if ':' in line:
+                key, value = line.split(':', 1)
+                character_data["fields"][key.strip()] = value.strip()
+        
+        return character_data
+    
+    def _parse_monster_content(self, content: str, name: str):
+        """解析怪物卡内容"""
+        monster_data = {
+            "name": name,
+            "type": "monster",
+            "raw_content": content,
+            "fields": {}
+        }
+        
+        # 解析键值对格式的内容
+        lines = content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if ':' in line:
+                key, value = line.split(':', 1)
+                monster_data["fields"][key.strip()] = value.strip()
+        
+        return monster_data
 
 
 class WebPreviewServer:
@@ -291,7 +551,6 @@ class WebPreviewServer:
             original_cwd = os.getcwd()
             os.chdir(self.base_dir)
             
-            # 创建静默的请求处理器
             # 创建 HTTP 服务器
             self.httpd = HTTPServer(('localhost', self.port), WebPreviewRequestHandler)
             self.httpd._preview_server = self  # 让处理器能访问到服务器实例
@@ -416,6 +675,35 @@ class WebPreviewServer:
         
         # 获取预览页面 URL
         url = self.get_url("tools/preview/preview.html", params)
+        
+        try:
+            webbrowser.open(url)
+            return True
+        except Exception as e:
+            print(f"打开浏览器失败: {e}")
+            return False
+    
+    def open_character_viewer(self, campaign_name: str = None) -> bool:
+        """
+        打开角色卡查看器页面
+        
+        Args:
+            campaign_name: 跑团名称（可选，用于预选跑团）
+            
+        Returns:
+            bool: 是否成功打开
+        """
+        if not self.running:
+            if not self.start():
+                return False
+        
+        # 构建 URL 参数
+        params = {}
+        if campaign_name:
+            params['campaign'] = campaign_name
+        
+        # 获取角色卡查看器页面 URL
+        url = self.get_url("tools/characters/characters.html", params)
         
         try:
             webbrowser.open(url)

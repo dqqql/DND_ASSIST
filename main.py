@@ -138,6 +138,10 @@ class App:
         self.delete_button = create_themed_button(button_frame, text="删除文件", width=12, command=self.delete_file, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=action_button_spacing)
         
+        # Web 查看按钮
+        self.web_view_button = create_themed_button(button_frame, text="Web 查看", width=12, command=self.open_web_viewer, state=tk.DISABLED)
+        self.web_view_button.pack(side=tk.LEFT, padx=action_button_spacing)
+        
         # 返回上级按钮（仅在 notes 分类显示）- 使用主题化按钮和网格对齐间距
         back_button_spacing = get_component_spacing("panel")
         self.back_button = create_themed_button(top, text="返回上级", width=12, command=self.go_back_notes)
@@ -273,6 +277,8 @@ class App:
         
         if campaign:
             self.show_categories()
+            # 启用 Web 查看按钮
+            self.web_view_button.config(state=tk.NORMAL)
         else:
             show_themed_error(self.root, "错误", "选择跑团失败")
 
@@ -280,6 +286,8 @@ class App:
         for w in self.category_frame.winfo_children():
             w.destroy()
         self.category_buttons.clear()
+        # 禁用 Web 查看按钮
+        self.web_view_button.config(state=tk.DISABLED)
 
     def show_categories(self):
         self.clear_categories()
@@ -867,6 +875,36 @@ class App:
         """预览服务器停止时的回调"""
         # 可以在这里添加UI状态更新逻辑
         pass
+    
+    def open_web_viewer(self):
+        """打开角色卡 Web 查看器"""
+        # 获取当前选中的跑团
+        sel = self.campaign_list.curselection()
+        if not sel:
+            show_themed_warning(self.root, "提示", "请先选择一个跑团")
+            return
+        
+        campaign_name = self.campaign_list.get(sel[0])
+        
+        # 打开角色卡 Web 查看器
+        success = self.web_preview.open_character_viewer(campaign_name)
+        
+        if success:
+            show_themed_info(self.root, "成功", 
+                           "角色卡查看器已在浏览器中打开\n\n"
+                           "功能说明：\n"
+                           "• 支持查看人物卡、怪物卡和地图\n"
+                           "• 提供卡片和列表两种视图模式\n"
+                           "• 可以查看详细信息和原始内容\n"
+                           "• 界面美观，响应式设计")
+        else:
+            show_themed_error(self.root, "打开失败", 
+                            "无法打开角色卡查看器\n\n"
+                            "可能的原因：\n"
+                            "• 无法启动本地服务器\n"
+                            "• 端口被占用\n"
+                            "• 无法打开浏览器\n\n"
+                            "请检查网络设置或重试")
 
     def show_image_content(self, file_path):
         """在右侧显示图片内容

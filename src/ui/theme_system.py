@@ -23,8 +23,8 @@ class ColorPalette:
     text_disabled: str = "#adb5bd"   # 浅灰色禁用文本
     
     # 交互元素颜色
-    button_normal: str = "#e9ecef"   # 浅灰色普通按钮
-    button_hover: str = "#dee2e6"    # 稍深的悬停色
+    button_normal: str = "#f8f9fa"   # 更亮的普通按钮颜色
+    button_hover: str = "#e9ecef"    # 悬停色
     button_active: str = "#0066cc"   # 蓝色激活/按下状态
     button_disabled: str = "#f8f9fa" # 禁用按钮背景
     

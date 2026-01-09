@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色卡查看器</title>
+    <link rel="stylesheet" href="characters.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>角色卡查看器</h1>
+            <div class="controls">
+                <select id="campaignSelect" class="campaign-select">
+                    <option value="">选择跑团...</option>
+                </select>
+                <div class="view-toggle">
+                    <button id="cardViewBtn" class="view-btn active">卡片视图</button>
+                    <button id="listViewBtn" class="view-btn">列表视图</button>
+                </div>
+                <div class="category-tabs">
+                    <button class="tab-btn active" data-category="characters">人物卡</button>
+                    <button class="tab-btn" data-category="monsters">怪物卡</button>
+                    <button class="tab-btn" data-category="maps">地图</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>加载中...</p>
+            </div>
+
+            <div class="error-message" id="errorMessage" style="display: none;">
+                <p>加载失败，请检查网络连接或重试</p>
+                <button onclick="location.reload()">重新加载</button>
+            </div>
+
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <div class="empty-icon">📋</div>
+                <h3>暂无数据</h3>
+                <p>当前跑团中没有找到相关文件</p>
+            </div>
+
+            <!-- 卡片视图 -->
+            <div class="cards-container" id="cardsContainer">
+                <!-- 动态生成的卡片内容 -->
+            </div>
+
+            <!-- 列表视图 -->
+            <div class="list-container" id="listContainer" style="display: none;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>类型</th>
+                            <th>主要信息</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listTableBody">
+                        <!-- 动态生成的列表内容 -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- 详情模态框 -->
+        <div class="modal" id="detailModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modalTitle">角色详情</h2>
+                    <button class="close-btn" id="closeModal">&times;</button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- 动态生成的详情内容 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="characters.js"></script>
+</body>
+</html>

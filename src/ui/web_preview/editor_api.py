@@ -18,6 +18,7 @@ sys.path.insert(0, str(project_root))
 
 from src.core.campaign import CampaignService
 from src.core.story_editor_service import StoryEditorService
+from src.core.file_manager import FileManagerService
 
 
 class EditorAPIHandler(BaseHTTPRequestHandler):
@@ -26,6 +27,7 @@ class EditorAPIHandler(BaseHTTPRequestHandler):
     # 类级别的服务实例，避免每次请求都重新创建
     _campaign_service = None
     _editor_service = None
+    _file_manager_service = None
     
     @classmethod
     def get_services(cls):
@@ -46,16 +48,17 @@ class EditorAPIHandler(BaseHTTPRequestHandler):
                 # 创建服务实例
                 cls._campaign_service = CampaignService()
                 cls._editor_service = StoryEditorService(cls._campaign_service)
+                cls._file_manager_service = FileManagerService(cls._campaign_service)
                 
             finally:
                 # 恢复原始工作目录
                 os.chdir(original_cwd)
                 
-        return cls._campaign_service, cls._editor_service
+        return cls._campaign_service, cls._editor_service, cls._file_manager_service
     
     def __init__(self, *args, **kwargs):
         # 获取共享的服务实例
-        self.campaign_service, self.editor_service = self.get_services()
+        self.campaign_service, self.editor_service, self.file_manager_service = self.get_services()
         super().__init__(*args, **kwargs)
     
     def log_message(self, format, *args):
@@ -79,6 +82,18 @@ class EditorAPIHandler(BaseHTTPRequestHandler):
                 self._handle_get_story(params)
             elif path == '/api/story/statistics':
                 self._handle_get_statistics(params)
+            elif path == '/api/characters':
+                self._handle_list_characters(params)
+            elif path == '/api/character':
+                self._handle_get_character(params)
+            elif path == '/api/monsters':
+                self._handle_list_monsters(params)
+            elif path == '/api/monster':
+                self._handle_get_monster(params)
+            elif path == '/api/maps':
+                self._handle_list_maps(params)
+            elif path == '/api/map':
+                self._handle_get_map(params)
             else:
                 self._send_error(404, "API endpoint not found")
                 
@@ -235,3 +250,248 @@ class EditorAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
+    
+    def _handle_list_characters(self, params: Dict[str, list]):
+        """处理获取人物卡列表请求"""
+        campaign_name = self._get_param(params, 'campaign')
+        if not campaign_name:
+            self._send_error(400, "Missing campaign parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = self.campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_error(404, "Campaign not found")
+                return
+            
+            # 获取人物卡文件列表
+            files = self.file_manager_service.list_files("characters")
+            
+            # 转换为 API 响应格式
+            characters = []
+            for file_info in files:
+                if not file_info.is_directory:
+                    characters.append({
+                        "name": file_info.get_display_name(),
+                        "filename": file_info.name,
+                        "file_type": file_info.file_type,
+                        "is_hidden": file_info.is_hidden
+                    })
+            
+            self._send_json_response({"characters": characters})
+            
+        except Exception as e:
+            self._send_error(500, f"获取人物卡列表失败: {str(e)}")
+    
+    def _handle_get_character(self, params: Dict[str, list]):
+        """处理获取人物卡内容请求"""
+        campaign_name = self._get_param(params, 'campaign')
+        character_name = self._get_param(params, 'name')
+        
+        if not campaign_name or not character_name:
+            self._send_error(400, "Missing campaign or name parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = self.campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_error(404, "Campaign not found")
+                return
+            
+            # 读取人物卡内容
+            content = self.file_manager_service.read_file_content("characters", character_name)
+            if content is None:
+                self._send_error(404, "Character not found")
+                return
+            
+            # 解析人物卡内容
+            character_data = self._parse_character_content(content, character_name)
+            self._send_json_response(character_data)
+            
+        except Exception as e:
+            self._send_error(500, f"获取人物卡失败: {str(e)}")
+    
+    def _handle_list_monsters(self, params: Dict[str, list]):
+        """处理获取怪物卡列表请求"""
+        campaign_name = self._get_param(params, 'campaign')
+        if not campaign_name:
+            self._send_error(400, "Missing campaign parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = self.campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_error(404, "Campaign not found")
+                return
+            
+            # 获取怪物卡文件列表
+            files = self.file_manager_service.list_files("monsters")
+            
+            # 转换为 API 响应格式
+            monsters = []
+            for file_info in files:
+                if not file_info.is_directory:
+                    monsters.append({
+                        "name": file_info.get_display_name(),
+                        "filename": file_info.name,
+                        "file_type": file_info.file_type,
+                        "is_hidden": file_info.is_hidden
+                    })
+            
+            self._send_json_response({"monsters": monsters})
+            
+        except Exception as e:
+            self._send_error(500, f"获取怪物卡列表失败: {str(e)}")
+    
+    def _handle_get_monster(self, params: Dict[str, list]):
+        """处理获取怪物卡内容请求"""
+        campaign_name = self._get_param(params, 'campaign')
+        monster_name = self._get_param(params, 'name')
+        
+        if not campaign_name or not monster_name:
+            self._send_error(400, "Missing campaign or name parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = self.campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_error(404, "Campaign not found")
+                return
+            
+            # 读取怪物卡内容
+            content = self.file_manager_service.read_file_content("monsters", monster_name)
+            if content is None:
+                self._send_error(404, "Monster not found")
+                return
+            
+            # 解析怪物卡内容
+            monster_data = self._parse_monster_content(content, monster_name)
+            self._send_json_response(monster_data)
+            
+        except Exception as e:
+            self._send_error(500, f"获取怪物卡失败: {str(e)}")
+    
+    def _handle_list_maps(self, params: Dict[str, list]):
+        """处理获取地图列表请求"""
+        campaign_name = self._get_param(params, 'campaign')
+        if not campaign_name:
+            self._send_error(400, "Missing campaign parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = self.campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_error(404, "Campaign not found")
+                return
+            
+            # 获取地图文件列表
+            files = self.file_manager_service.list_files("maps")
+            
+            # 转换为 API 响应格式
+            maps = []
+            for file_info in files:
+                if not file_info.is_directory:
+                    maps.append({
+                        "name": file_info.get_display_name(),
+                        "filename": file_info.name,
+                        "file_type": file_info.file_type,
+                        "is_hidden": file_info.is_hidden
+                    })
+            
+            self._send_json_response({"maps": maps})
+            
+        except Exception as e:
+            self._send_error(500, f"获取地图列表失败: {str(e)}")
+    
+    def _handle_get_map(self, params: Dict[str, list]):
+        """处理获取地图内容请求"""
+        campaign_name = self._get_param(params, 'campaign')
+        map_name = self._get_param(params, 'name')
+        
+        if not campaign_name or not map_name:
+            self._send_error(400, "Missing campaign or name parameter")
+            return
+        
+        try:
+            # 选择跑团
+            campaign = self.campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_error(404, "Campaign not found")
+                return
+            
+            # 读取地图内容
+            content = self.file_manager_service.read_file_content("maps", map_name)
+            if content is None:
+                self._send_error(404, "Map not found")
+                return
+            
+            # 获取文件信息
+            files = self.file_manager_service.list_files("maps")
+            file_info = next((f for f in files if f.display_name == map_name), None)
+            
+            if file_info and file_info.file_type == "image":
+                # 对于图片文件，返回文件路径信息
+                map_data = {
+                    "name": map_name,
+                    "type": "image",
+                    "file_type": file_info.file_type,
+                    "filename": file_info.name,
+                    "content": None  # 图片内容通过单独的接口获取
+                }
+            else:
+                # 对于文本文件，返回内容
+                map_data = {
+                    "name": map_name,
+                    "type": "text",
+                    "file_type": file_info.file_type if file_info else "text",
+                    "filename": file_info.name if file_info else map_name,
+                    "content": content
+                }
+            
+            self._send_json_response(map_data)
+            
+        except Exception as e:
+            self._send_error(500, f"获取地图失败: {str(e)}")
+    
+    def _parse_character_content(self, content: str, name: str) -> Dict[str, Any]:
+        """解析人物卡内容"""
+        character_data = {
+            "name": name,
+            "type": "character",
+            "raw_content": content,
+            "fields": {}
+        }
+        
+        # 解析键值对格式的内容
+        lines = content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if ':' in line:
+                key, value = line.split(':', 1)
+                character_data["fields"][key.strip()] = value.strip()
+        
+        return character_data
+    
+    def _parse_monster_content(self, content: str, name: str) -> Dict[str, Any]:
+        """解析怪物卡内容"""
+        monster_data = {
+            "name": name,
+            "type": "monster",
+            "raw_content": content,
+            "fields": {}
+        }
+        
+        # 解析键值对格式的内容
+        lines = content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if ':' in line:
+                key, value = line.split(':', 1)
+                monster_data["fields"][key.strip()] = value.strip()
+        
+        return monster_data

@@ -63,6 +63,22 @@ class WebPreviewManager:
         # 打开编辑器页面
         return self.server.open_story_editor(campaign_name, story_name)
     
+    def open_character_viewer(self, campaign_name: str = None) -> bool:
+        """
+        打开角色卡查看器
+        
+        Args:
+            campaign_name: 跑团名称（可选，用于预选跑团）
+            
+        Returns:
+            bool: 是否成功打开
+        """
+        # 启动服务器（如果尚未启动）
+        if not self.start_server():
+            return False
+        
+        return self.server.open_character_viewer(campaign_name)
+    
     def open_story_preview(self, campaign_name: str, story_name: str, script_name: Optional[str] = None) -> bool:
         """
         打开剧情预览

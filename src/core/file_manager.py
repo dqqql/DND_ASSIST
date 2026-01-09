@@ -352,3 +352,20 @@ class FileManagerService:
         hidden_files = self.campaign_service.get_hidden_files_for_category(campaign, hidden_key)
         
         return sorted(list(hidden_files))
+    
+    def read_file_content(self, category: str, display_name: str, sub_path: str = "") -> Optional[str]:
+        """读取文件内容
+        
+        Args:
+            category: 分类名称
+            display_name: 显示名称（可能是去掉扩展名的）
+            sub_path: 子路径（用于notes分类）
+            
+        Returns:
+            Optional[str]: 文件内容，失败返回None
+        """
+        file_path = self.get_file_path(category, display_name, sub_path)
+        if not file_path:
+            return None
+        
+        return self.read_text_file(file_path)
