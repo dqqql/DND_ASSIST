@@ -1,10 +1,12 @@
-# 🎲 DND 跑团管理器
+<h1 style="text-align: center;">🎲 DND 跑团管理器</h1>
+
 
 <div align="center">
 
 ![DND Manager](https://img.shields.io/badge/DND-Manager-blue?style=for-the-badge&logo=dungeons-dragons)
 ![Python](https://img.shields.io/badge/Python-3.7+-green?style=for-the-badge&logo=python)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+
 **一个现代化的 DND 跑团资料管理工具**
 
 集成数据管理 • 剧情可视化 • 现代化界面
@@ -338,4 +340,5 @@ Made with ❤️ for D&D enthusiasts
 
 
 </div>
+
 
