@@ -645,47 +645,75 @@ class App:
         info_text += f"• DOT 文件：{'✓ 已生成' if dot_exists else '✗ 未生成'}\n"
         info_text += f"• SVG 文件：{'✓ 已生成' if svg_exists else '✗ 未生成'}\n\n"
         
+        info_text += "编辑器选项：\n"
+        info_text += "• Web 编辑器：推荐的现代化编辑体验\n"
+        info_text += "• Legacy 编辑器：传统 Tkinter 编辑器（应急使用）\n\n"
+        
         if svg_exists:
             info_text += "可以打开剧情图预览。\n\n"
             info_text += "操作说明：\n"
-            info_text += "• 双击文件名：编辑剧情文件\n"
-            info_text += "• 点击下方按钮：打开可视化预览\n"
+            info_text += "• 双击文件名：使用系统默认程序打开\n"
+            info_text += "• 点击下方按钮：选择编辑器或预览方式\n"
         else:
             info_text += "需要先生成预览文件才能查看剧情图。\n\n"
             info_text += "操作说明：\n"
-            info_text += "• 双击文件名：编辑剧情文件\n"
-            info_text += "• 点击下方按钮：生成并打开预览\n"
+            info_text += "• 双击文件名：使用系统默认程序打开\n"
+            info_text += "• 点击下方按钮：选择编辑器或生成预览\n"
         
         self.content_text.config(state=tk.NORMAL)
         self.content_text.delete(1.0, tk.END)
         self.content_text.insert(1.0, info_text)
         self.content_text.config(state=tk.DISABLED)
         
-        # 添加预览按钮
-        self._add_preview_button(campaign.name, story_name, svg_exists)
+        # 添加操作按钮
+        self._add_story_action_buttons(campaign.name, story_name, svg_exists)
     
-    def _add_preview_button(self, campaign_name: str, story_name: str, svg_exists: bool):
-        """添加预览按钮到内容区域"""
+    def _add_story_action_buttons(self, campaign_name: str, story_name: str, svg_exists: bool):
+        """添加剧情操作按钮到内容区域"""
         # 移除之前的按钮（如果存在）
-        if hasattr(self, '_preview_button_frame'):
-            self._preview_button_frame.destroy()
+        if hasattr(self, '_story_action_button_frame'):
+            self._story_action_button_frame.destroy()
         
         # 创建按钮框架
-        self._preview_button_frame = tk.Frame(self.text_frame)
-        self._preview_button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+        self._story_action_button_frame = tk.Frame(self.text_frame)
+        self._story_action_button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+        
+        # 第一行：编辑器按钮
+        editor_frame = tk.Frame(self._story_action_button_frame)
+        editor_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # Web 编辑器按钮（推荐）
+        web_editor_btn = create_themed_button(
+            editor_frame,
+            text="🌐 Web 编辑器 (推荐)",
+            command=lambda: self._open_web_editor(campaign_name, story_name)
+        )
+        web_editor_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Legacy 编辑器按钮
+        legacy_editor_btn = create_themed_button(
+            editor_frame,
+            text="📝 Legacy 编辑器",
+            command=lambda: self._open_legacy_editor(campaign_name, story_name)
+        )
+        legacy_editor_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 第二行：预览按钮
+        preview_frame = tk.Frame(self._story_action_button_frame)
+        preview_frame.pack(fill=tk.X, pady=(5, 0))
         
         if svg_exists:
             # 如果预览文件存在，显示打开预览按钮
             preview_btn = create_themed_button(
-                self._preview_button_frame,
-                text="🌐 打开剧情图预览",
+                preview_frame,
+                text="🎭 打开剧情图预览",
                 command=lambda: self._open_story_preview(campaign_name, story_name)
             )
             preview_btn.pack(side=tk.LEFT, padx=5)
         else:
             # 如果预览文件不存在，显示生成预览按钮
             generate_btn = create_themed_button(
-                self._preview_button_frame,
+                preview_frame,
                 text="🔄 生成预览文件",
                 command=lambda: self._generate_and_open_preview(campaign_name, story_name)
             )
@@ -693,11 +721,78 @@ class App:
         
         # 添加刷新按钮
         refresh_btn = create_themed_button(
-            self._preview_button_frame,
+            preview_frame,
             text="🔄 刷新状态",
             command=lambda: self.on_file_select(None)  # 重新加载当前文件信息
         )
         refresh_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def _open_web_editor(self, campaign_name: str, story_name: str):
+        """打开 Web 编辑器"""
+        success = self.web_preview.open_story_editor(campaign_name, story_name)
+        
+        if success:
+            show_themed_info(self.root, "Web 编辑器已打开", 
+                           f"🚀 Web 编辑器已在浏览器中打开\n\n"
+                           f"📋 跑团：{campaign_name}\n"
+                           f"📖 剧情：{story_name}\n\n"
+                           f"✨ 这是推荐的编辑方式，提供现代化的编辑体验：\n"
+                           f"   • 实时保存和数据验证\n"
+                           f"   • 响应式界面设计\n"
+                           f"   • 智能节点管理\n"
+                           f"   • 快捷键支持 (Ctrl+S 保存, Ctrl+N 新建)\n\n"
+                           f"💡 使用提示：\n"
+                           f"   • 编辑器会自动加载当前跑团和剧情\n"
+                           f"   • 所有更改会实时验证数据完整性\n"
+                           f"   • 关闭浏览器标签页后服务器将自动停止\n\n"
+                           f"🔧 如果遇到问题，可以使用 Legacy 编辑器作为备用方案")
+        else:
+            show_themed_error(self.root, "打开失败", 
+                            "无法打开 Web 编辑器\n\n"
+                            "可能的原因：\n"
+                            "• 无法启动本地服务器\n"
+                            "• 无法打开浏览器\n"
+                            "• 端口被占用\n\n"
+                            "请尝试使用 Legacy 编辑器作为备用方案。")
+    
+    def _open_legacy_editor(self, campaign_name: str, story_name: str):
+        """打开 Legacy 编辑器"""
+        try:
+            # 构建剧情文件路径
+            campaign = self.campaign_service.get_current_campaign()
+            if not campaign:
+                show_themed_error(self.root, "错误", "未选择跑团")
+                return
+            
+            story_path = campaign.get_notes_path() / f"{story_name}.json"
+            
+            if not story_path.exists():
+                show_themed_error(self.root, "错误", f"剧情文件不存在：{story_path}")
+                return
+            
+            # 启动 Legacy 编辑器
+            import subprocess
+            import sys
+            from pathlib import Path
+            
+            editor_script = Path(__file__).parent / "src" / "story_editor" / "editor.py"
+            
+            # 使用 subprocess 启动编辑器
+            subprocess.Popen([
+                sys.executable, str(editor_script)
+            ], cwd=str(Path(__file__).parent))
+            
+            show_themed_info(self.root, "Legacy 编辑器已启动", 
+                           f"Legacy 编辑器已启动\n\n"
+                           f"这是传统的 Tkinter 编辑器，仅用于基础维护和应急修改。\n"
+                           f"推荐使用 Web 编辑器获得更好的编辑体验。\n\n"
+                           f"请在编辑器中手动打开文件：\n{story_path}")
+            
+        except Exception as e:
+            show_themed_error(self.root, "启动失败", 
+                            f"无法启动 Legacy 编辑器\n\n"
+                            f"错误信息：{str(e)}\n\n"
+                            f"请尝试使用 Web 编辑器。")
     
     def _open_story_preview(self, campaign_name: str, story_name: str):
         """打开剧情预览"""
@@ -831,9 +926,9 @@ class App:
         theme_manager.apply_theme_to_widget(self.image_label, "content_image", "normal")
         
         # 清理预览按钮
-        if hasattr(self, '_preview_button_frame'):
-            self._preview_button_frame.destroy()
-            delattr(self, '_preview_button_frame')
+        if hasattr(self, '_story_action_button_frame'):
+            self._story_action_button_frame.destroy()
+            delattr(self, '_story_action_button_frame')
 
     def open_selected_file(self, event):
         """双击文件打开，notes 分类双击文件夹进入"""

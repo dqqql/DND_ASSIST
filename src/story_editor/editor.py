@@ -17,8 +17,11 @@ DATA_DIR = os.path.join(BASE_DIR, "data", "campaigns")
 class StoryEditor:
     def __init__(self, root):
         self.root = root
-        self.root.title("剧情编辑器 - Story Editor")
+        self.root.title("剧情编辑器 (Legacy) - Story Editor")
         self.root.geometry("1200x700")
+        
+        # Legacy 编辑器标识
+        self._is_legacy_editor = True
         
         # 设置窗口图标和样式
         self.setup_styles()
@@ -99,6 +102,15 @@ class StoryEditor:
         """创建工具栏"""
         toolbar = ttk.Frame(self.root)
         toolbar.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Legacy 编辑器提示
+        legacy_frame = ttk.Frame(toolbar)
+        legacy_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        legacy_label = ttk.Label(legacy_frame, 
+                                text="⚠️ Legacy 编辑器 - 仅用于基础维护和应急修改，推荐使用新的 Web 编辑器",
+                                foreground="orange", font=("Arial", 9, "bold"))
+        legacy_label.pack(side=tk.LEFT)
         
         # 文件操作按钮
         ttk.Button(toolbar, text="新建", command=self.new_story, 

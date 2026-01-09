@@ -1,6 +1,6 @@
 """
 Web 预览服务器
-提供本地 HTTP 服务，支持剧情可视化预览
+提供本地 HTTP 服务，支持剧情可视化预览和编辑功能
 """
 
 import os
@@ -8,16 +8,238 @@ import socket
 import threading
 import time
 import webbrowser
+import json
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from typing import Optional, Callable
+
+from .editor_api import EditorAPIHandler
 
 try:
     import psutil
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
+
+
+class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
+    """Web 预览请求处理器"""
+    
+    def log_message(self, format, *args):
+        """静默处理请求日志"""
+        pass
+    
+    def do_GET(self):
+        """处理 GET 请求"""
+        # 记录访问时间
+        if hasattr(self.server, '_preview_server'):
+            self.server._preview_server.last_access_time = time.time()
+        
+        # 检查是否是 API 请求
+        if self.path.startswith('/api/'):
+            # 创建 API 处理器并传递请求信息
+            try:
+                # 手动处理 API 请求
+                self._handle_api_request()
+            except Exception as e:
+                print(f"[ERROR] API请求处理失败: {e}")
+                self.send_error(500, f"API请求处理失败: {str(e)}")
+            return
+        
+        return super().do_GET()
+    
+    def do_POST(self):
+        """处理 POST 请求"""
+        # 记录访问时间
+        if hasattr(self.server, '_preview_server'):
+            self.server._preview_server.last_access_time = time.time()
+        
+        # 检查是否是 API 请求
+        if self.path.startswith('/api/'):
+            # 创建 API 处理器并传递请求信息
+            try:
+                # 手动处理 API 请求
+                self._handle_api_request()
+            except Exception as e:
+                print(f"[ERROR] API请求处理失败: {e}")
+                self.send_error(500, f"API请求处理失败: {str(e)}")
+            return
+        
+        return super().do_POST()
+    
+    def do_OPTIONS(self):
+        """处理 OPTIONS 请求（CORS 预检）"""
+        # 记录访问时间
+        if hasattr(self.server, '_preview_server'):
+            self.server._preview_server.last_access_time = time.time()
+        
+        # 检查是否是 API 请求
+        if self.path.startswith('/api/'):
+            # 创建 API 处理器并传递请求信息
+            try:
+                # 手动处理 API 请求
+                self._handle_api_request()
+            except Exception as e:
+                print(f"[ERROR] API请求处理失败: {e}")
+                self.send_error(500, f"API请求处理失败: {str(e)}")
+            return
+        
+        # 对于非 API 请求，返回基本的 CORS 头
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
+    def _handle_api_request(self):
+        """处理 API 请求"""
+        # 获取 API 处理器
+        from .editor_api import EditorAPIHandler
+        
+        # 获取服务实例
+        campaign_service, editor_service = EditorAPIHandler.get_services()
+        
+        # 解析 URL
+        url_parts = urlparse(self.path)
+        path = url_parts.path
+        
+        # 更安全的参数解析
+        params = {}
+        if url_parts.query:
+            try:
+                import urllib.parse
+                params = urllib.parse.parse_qs(url_parts.query)
+                # 将列表值转换为单个值
+                params = {k: v[0] if v else '' for k, v in params.items()}
+            except Exception as e:
+                print(f"[ERROR] 参数解析失败: {e}")
+                params = {}
+        
+        try:
+            if self.command == 'GET':
+                self._handle_api_get(path, params, campaign_service, editor_service)
+            elif self.command == 'POST':
+                self._handle_api_post(path, campaign_service, editor_service)
+            elif self.command == 'OPTIONS':
+                self._handle_api_options()
+            else:
+                self._send_api_error(405, "Method not allowed")
+        except Exception as e:
+            print(f"[ERROR] API处理异常: {e}")
+            self._send_api_error(500, f"Internal server error: {str(e)}")
+    
+    def _handle_api_get(self, path, params, campaign_service, editor_service):
+        """处理 GET API 请求"""
+        if path == '/api/campaigns':
+            campaigns = campaign_service.list_campaigns()
+            self._send_api_response({"campaigns": campaigns})
+        elif path == '/api/stories':
+            campaign_name = params.get('campaign')
+            if not campaign_name:
+                self._send_api_error(400, "Missing campaign parameter")
+                return
+            stories = editor_service.list_available_stories(campaign_name)
+            self._send_api_response({"stories": stories})
+        elif path == '/api/story':
+            campaign_name = params.get('campaign')
+            story_name = params.get('story')
+            if not campaign_name or not story_name:
+                self._send_api_error(400, "Missing campaign or story parameter")
+                return
+            story_data = editor_service.load_story(campaign_name, story_name)
+            if story_data is None:
+                self._send_api_error(404, "Story not found")
+                return
+            self._send_api_response(story_data)
+        elif path == '/api/story/statistics':
+            campaign_name = params.get('campaign')
+            story_name = params.get('story')
+            if not campaign_name or not story_name:
+                self._send_api_error(400, "Missing campaign or story parameter")
+                return
+            story_data = editor_service.load_story(campaign_name, story_name)
+            if story_data is None:
+                self._send_api_error(404, "Story not found")
+                return
+            statistics = editor_service.get_story_statistics(story_data)
+            self._send_api_response(statistics)
+        else:
+            self._send_api_error(404, "API endpoint not found")
+    
+    def _handle_api_post(self, path, campaign_service, editor_service):
+        """处理 POST API 请求"""
+        # 读取请求体
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            request_data = json.loads(post_data.decode('utf-8'))
+        except json.JSONDecodeError:
+            self._send_api_error(400, "Invalid JSON data")
+            return
+        
+        if path == '/api/story/save':
+            campaign_name = request_data.get('campaign')
+            story_name = request_data.get('story')
+            story_data = request_data.get('data')
+            
+            if not campaign_name or not story_name or not story_data:
+                self._send_api_error(400, "Missing required parameters")
+                return
+            
+            success, message = editor_service.save_story(campaign_name, story_name, story_data)
+            
+            if success:
+                self._send_api_response({"success": True, "message": message})
+            else:
+                self._send_api_response({"success": False, "error": message}, status_code=400)
+        elif path == '/api/story/validate':
+            story_data = request_data.get('data')
+            if not story_data:
+                self._send_api_error(400, "Missing story data")
+                return
+            
+            is_valid, message = editor_service.validate_story_data(story_data)
+            self._send_api_response({
+                "valid": is_valid,
+                "message": message
+            })
+        elif path == '/api/story/new':
+            title = request_data.get('title', '新剧情')
+            story_data = editor_service.create_new_story(title)
+            self._send_api_response(story_data)
+        else:
+            self._send_api_error(404, "API endpoint not found")
+    
+    def _handle_api_options(self):
+        """处理 OPTIONS API 请求"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
+    def _send_api_response(self, data, status_code=200):
+        """发送 API 响应"""
+        import json
+        response_data = json.dumps(data, ensure_ascii=False, indent=2)
+        
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+        
+        self.wfile.write(response_data.encode('utf-8'))
+    
+    def _send_api_error(self, status_code, message):
+        """发送 API 错误响应"""
+        self._send_api_response({
+            "error": message,
+            "status": status_code
+        }, status_code)
 
 
 class WebPreviewServer:
@@ -70,25 +292,8 @@ class WebPreviewServer:
             os.chdir(self.base_dir)
             
             # 创建静默的请求处理器
-            class QuietHTTPRequestHandler(SimpleHTTPRequestHandler):
-                def log_message(self, format, *args):
-                    # 静默处理请求日志
-                    pass
-                
-                def do_GET(self):
-                    # 记录访问时间
-                    if hasattr(self.server, '_preview_server'):
-                        self.server._preview_server.last_access_time = time.time()
-                    return super().do_GET()
-                
-                def do_POST(self):
-                    # 记录访问时间
-                    if hasattr(self.server, '_preview_server'):
-                        self.server._preview_server.last_access_time = time.time()
-                    return super().do_POST()
-            
             # 创建 HTTP 服务器
-            self.httpd = HTTPServer(('localhost', self.port), QuietHTTPRequestHandler)
+            self.httpd = HTTPServer(('localhost', self.port), WebPreviewRequestHandler)
             self.httpd._preview_server = self  # 让处理器能访问到服务器实例
             self.running = True
             self.last_access_time = time.time()
@@ -152,6 +357,38 @@ class WebPreviewServer:
             url += '?' + urlencode(params)
         
         return url
+    
+    def open_story_editor(self, campaign_name: str, story_name: str = None) -> bool:
+        """
+        打开剧情编辑器页面
+        
+        Args:
+            campaign_name: 跑团名称
+            story_name: 剧情名称（可选，用于编辑现有剧情）
+            
+        Returns:
+            bool: 是否成功打开
+        """
+        if not self.running:
+            if not self.start():
+                return False
+        
+        # 构建 URL 参数
+        params = {
+            'campaign': campaign_name
+        }
+        if story_name:
+            params['story'] = story_name
+        
+        # 获取编辑器页面 URL
+        url = self.get_url("tools/editor/editor.html", params)
+        
+        try:
+            webbrowser.open(url)
+            return True
+        except Exception as e:
+            print(f"打开浏览器失败: {e}")
+            return False
     
     def open_preview(self, campaign_name: str, story_name: str, script_name: Optional[str] = None) -> bool:
         """

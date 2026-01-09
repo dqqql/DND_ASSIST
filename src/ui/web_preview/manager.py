@@ -45,6 +45,24 @@ class WebPreviewManager:
         if self.server:
             self.server.stop()
     
+    def open_story_editor(self, campaign_name: str, story_name: Optional[str] = None) -> bool:
+        """
+        打开剧情编辑器
+        
+        Args:
+            campaign_name: 跑团名称
+            story_name: 剧情名称（可选，用于编辑现有剧情）
+            
+        Returns:
+            bool: 是否成功打开
+        """
+        # 启动服务器（如果尚未启动）
+        if not self.start_server():
+            return False
+        
+        # 打开编辑器页面
+        return self.server.open_story_editor(campaign_name, story_name)
+    
     def open_story_preview(self, campaign_name: str, story_name: str, script_name: Optional[str] = None) -> bool:
         """
         打开剧情预览

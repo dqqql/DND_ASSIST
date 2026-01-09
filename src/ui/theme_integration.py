@@ -393,10 +393,22 @@ def create_themed_message_dialog(parent: tk.Widget, title: str, message: str,
         else:  # info
             buttons = ["确定"]
     
-    # 计算对话框尺寸
-    dialog_width = max(400, len(message) * 8 + 100)
-    dialog_width = min(dialog_width, 600)  # 最大宽度限制
-    dialog_height = 200 + (len(buttons) - 1) * 20
+    # 计算对话框尺寸 - 为长消息提供更大空间
+    # 计算消息行数
+    lines = message.count('\n') + 1
+    # 估算每行的平均字符数
+    avg_chars_per_line = len(message) / lines if lines > 0 else len(message)
+    
+    # 根据内容动态调整宽度
+    if avg_chars_per_line > 50 or lines > 5:
+        # 长消息使用更大的对话框
+        dialog_width = min(800, max(600, avg_chars_per_line * 12))
+        dialog_height = min(600, 250 + lines * 25)
+    else:
+        # 短消息使用标准尺寸
+        dialog_width = max(400, len(message) * 8 + 100)
+        dialog_width = min(dialog_width, 600)
+        dialog_height = 200 + (len(buttons) - 1) * 20
     
     # 创建对话框
     dialog = create_themed_dialog(parent, title, f"{dialog_width}x{dialog_height}")
@@ -435,15 +447,43 @@ def create_themed_message_dialog(parent: tk.Widget, title: str, message: str,
                          bg=theme.colors.primary_bg)
     icon_label.pack(side=tk.LEFT, padx=(0, theme.spacing.md))
     
-    # 消息文本
-    message_label = tk.Label(content_frame,
-                           text=message,
-                           font=theme.typography.get_font_tuple(theme.typography.size_medium),
-                           fg=theme.colors.text_primary,
-                           bg=theme.colors.primary_bg,
-                           wraplength=dialog_width - 120,
-                           justify=tk.LEFT)
-    message_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    # 消息文本区域 - 为长消息添加滚动支持
+    if lines > 10 or len(message) > 500:
+        # 长消息使用滚动文本框
+        text_frame = tk.Frame(content_frame, bg=theme.colors.primary_bg)
+        text_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        message_text = tk.Text(text_frame,
+                              font=theme.typography.get_font_tuple(theme.typography.size_medium),
+                              fg=theme.colors.text_primary,
+                              bg=theme.colors.primary_bg,
+                              wrap=tk.WORD,
+                              height=min(15, lines + 2),
+                              width=60,
+                              relief=tk.FLAT,
+                              bd=0,
+                              state=tk.DISABLED)
+        
+        scrollbar = tk.Scrollbar(text_frame, command=message_text.yview)
+        message_text.config(yscrollcommand=scrollbar.set)
+        
+        # 插入消息内容
+        message_text.config(state=tk.NORMAL)
+        message_text.insert(tk.END, message)
+        message_text.config(state=tk.DISABLED)
+        
+        message_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    else:
+        # 短消息使用标签
+        message_label = tk.Label(content_frame,
+                               text=message,
+                               font=theme.typography.get_font_tuple(theme.typography.size_medium),
+                               fg=theme.colors.text_primary,
+                               bg=theme.colors.primary_bg,
+                               wraplength=dialog_width - 150,
+                               justify=tk.LEFT)
+        message_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     
     # 按钮框架
     button_frame = tk.Frame(main_frame, bg=theme.colors.primary_bg)
