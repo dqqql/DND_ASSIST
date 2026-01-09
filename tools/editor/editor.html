@@ -106,54 +106,196 @@
                 </section>
             </aside>
 
-            <!-- 中间面板：节点编辑 -->
+            <!-- 中间面板：多功能标签页 -->
             <section class="center-panel">
                 <div class="panel-header">
-                    <h3>节点编辑</h3>
-                    <div class="node-actions">
+                    <div class="tab-navigation">
+                        <button class="tab-btn active" data-tab="node-editor">
+                            <span class="tab-icon">📝</span>
+                            <span class="tab-label">节点编辑</span>
+                        </button>
+                        <button class="tab-btn" data-tab="story-overview">
+                            <span class="tab-icon">🗺️</span>
+                            <span class="tab-label">剧情概览</span>
+                        </button>
+                        <button class="tab-btn" data-tab="flow-chart">
+                            <span class="tab-icon">🔗</span>
+                            <span class="tab-label">流程图</span>
+                        </button>
+                        <button class="tab-btn" data-tab="validation">
+                            <span class="tab-icon">✅</span>
+                            <span class="tab-label">验证检查</span>
+                        </button>
+                        <button class="tab-btn" data-tab="export">
+                            <span class="tab-icon">📤</span>
+                            <span class="tab-label">导出工具</span>
+                        </button>
+                    </div>
+                    <div class="tab-actions">
                         <button id="delete-node-btn" class="btn btn-sm btn-danger" disabled>删除节点</button>
                     </div>
                 </div>
                 
-                <div id="node-editor" class="node-editor">
-                    <div class="empty-state">
-                        <p>请选择一个节点进行编辑</p>
+                <!-- 标签页内容 -->
+                <div class="tab-content">
+                    <!-- 节点编辑标签页 -->
+                    <div id="tab-node-editor" class="tab-pane active">
+                        <div id="node-editor" class="node-editor">
+                            <div class="empty-state">
+                                <p>请选择一个节点进行编辑</p>
+                            </div>
+                        </div>
+
+                        <!-- 节点编辑表单（初始隐藏） -->
+                        <form id="node-form" class="node-form" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="node-id">节点ID：</label>
+                                    <input type="text" id="node-id" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="node-type">节点类型：</label>
+                                    <select id="node-type" class="form-control">
+                                        <option value="main">主线节点</option>
+                                        <option value="branch">分支节点</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="node-title">节点标题：</label>
+                                <input type="text" id="node-title" class="form-control" placeholder="输入节点标题">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="node-next">下一个节点：</label>
+                                <select id="node-next" class="form-control">
+                                    <option value="">无</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="node-content">节点内容：</label>
+                                <textarea id="node-content" class="form-control" rows="8" placeholder="输入节点内容..."></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- 剧情概览标签页 -->
+                    <div id="tab-story-overview" class="tab-pane">
+                        <div class="overview-content">
+                            <div class="overview-header">
+                                <h3>剧情结构分析</h3>
+                                <div class="overview-stats" id="overview-stats">
+                                    <!-- 统计信息将通过 JS 动态生成 -->
+                                </div>
+                            </div>
+                            
+                            <div class="overview-sections">
+                                <div class="overview-section">
+                                    <h4>📊 节点分布</h4>
+                                    <div id="node-distribution" class="chart-container">
+                                        <!-- 节点分布图表 -->
+                                    </div>
+                                </div>
+                                
+                                <div class="overview-section">
+                                    <h4>🔍 问题检测</h4>
+                                    <div id="issue-detection" class="issue-list">
+                                        <!-- 问题列表 -->
+                                    </div>
+                                </div>
+                                
+                                <div class="overview-section">
+                                    <h4>📈 剧情路径</h4>
+                                    <div id="story-paths" class="path-list">
+                                        <!-- 剧情路径分析 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 流程图标签页 -->
+                    <div id="tab-flow-chart" class="tab-pane">
+                        <div class="flow-chart-content">
+                            <div class="flow-chart-toolbar">
+                                <button id="refresh-chart-btn" class="btn btn-sm btn-primary">刷新图表</button>
+                                <button id="export-chart-btn" class="btn btn-sm btn-secondary">导出图片</button>
+                                <div class="chart-controls">
+                                    <label>
+                                        <input type="checkbox" id="show-content-preview" checked>
+                                        显示内容预览
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" id="show-branch-details" checked>
+                                        显示分支详情
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="flow-chart-container" class="flow-chart-container">
+                                <div class="empty-state">
+                                    <p>点击"刷新图表"生成剧情流程图</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 验证检查标签页 -->
+                    <div id="tab-validation" class="tab-pane">
+                        <div class="validation-content">
+                            <div class="validation-header">
+                                <h3>剧情验证检查</h3>
+                                <button id="run-validation-btn" class="btn btn-primary">运行检查</button>
+                            </div>
+                            
+                            <div class="validation-results" id="validation-results">
+                                <div class="empty-state">
+                                    <p>点击"运行检查"开始验证剧情完整性</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 导出工具标签页 -->
+                    <div id="tab-export" class="tab-pane">
+                        <div class="export-content">
+                            <div class="export-header">
+                                <h3>导出工具</h3>
+                                <p>将剧情导出为不同格式</p>
+                            </div>
+                            
+                            <div class="export-options">
+                                <div class="export-option">
+                                    <h4>📄 文本格式</h4>
+                                    <p>导出为纯文本或 Markdown 格式</p>
+                                    <div class="export-actions">
+                                        <button id="export-txt-btn" class="btn btn-secondary">导出 TXT</button>
+                                        <button id="export-md-btn" class="btn btn-secondary">导出 Markdown</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="export-option">
+                                    <h4>🎭 剧情图</h4>
+                                    <p>生成可视化的剧情流程图</p>
+                                    <div class="export-actions">
+                                        <button id="export-svg-btn" class="btn btn-secondary">导出 SVG</button>
+                                        <button id="export-png-btn" class="btn btn-secondary">导出 PNG</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="export-option">
+                                    <h4>📊 数据格式</h4>
+                                    <p>导出为结构化数据格式</p>
+                                    <div class="export-actions">
+                                        <button id="export-json-btn" class="btn btn-secondary">导出 JSON</button>
+                                        <button id="export-csv-btn" class="btn btn-secondary">导出 CSV</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- 节点编辑表单（初始隐藏） -->
-                <form id="node-form" class="node-form" style="display: none;">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="node-id">节点ID：</label>
-                            <input type="text" id="node-id" class="form-control" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="node-type">节点类型：</label>
-                            <select id="node-type" class="form-control">
-                                <option value="main">主线节点</option>
-                                <option value="branch">分支节点</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="node-title">节点标题：</label>
-                        <input type="text" id="node-title" class="form-control" placeholder="输入节点标题">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="node-next">下一个节点：</label>
-                        <select id="node-next" class="form-control">
-                            <option value="">无</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="node-content">节点内容：</label>
-                        <textarea id="node-content" class="form-control" rows="8" placeholder="输入节点内容..."></textarea>
-                    </div>
-                </form>
             </section>
 
             <!-- 右侧面板：分支编辑 -->

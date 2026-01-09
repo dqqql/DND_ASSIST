@@ -81,9 +81,23 @@ class StoryEditor {
         document.getElementById('add-branch-node-btn').addEventListener('click', () => this.addNode('branch'));
         document.getElementById('delete-node-btn').addEventListener('click', () => this.deleteNode());
         
-        // 节点搜索
-        document.getElementById('node-search-input').addEventListener('input', (e) => this.onNodeSearch(e.target.value));
-        document.getElementById('clear-search-btn').addEventListener('click', () => this.clearNodeSearch());
+        // 标签页切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.switchTab(e.target.closest('.tab-btn').dataset.tab));
+        });
+        
+        // 各标签页功能按钮
+        document.getElementById('refresh-chart-btn').addEventListener('click', () => this.refreshFlowChart());
+        document.getElementById('export-chart-btn').addEventListener('click', () => this.exportChart());
+        document.getElementById('run-validation-btn').addEventListener('click', () => this.runValidation());
+        
+        // 导出按钮
+        document.getElementById('export-txt-btn').addEventListener('click', () => this.exportAs('txt'));
+        document.getElementById('export-md-btn').addEventListener('click', () => this.exportAs('md'));
+        document.getElementById('export-svg-btn').addEventListener('click', () => this.exportAs('svg'));
+        document.getElementById('export-png-btn').addEventListener('click', () => this.exportAs('png'));
+        document.getElementById('export-json-btn').addEventListener('click', () => this.exportAs('json'));
+        document.getElementById('export-csv-btn').addEventListener('click', () => this.exportAs('csv'));
         
         // 表单变化监听
         this.bindFormEvents();
@@ -935,28 +949,16 @@ class StoryEditor {
             return;
         }
         
-        try {
-            const stats = await this.apiCall('story/statistics', {
-                method: 'POST',
-                body: JSON.stringify({ data: this.storyData })
-            });
-            
-            document.getElementById('total-nodes').textContent = stats.total_nodes || 0;
-            document.getElementById('main-nodes').textContent = stats.main_nodes || 0;
-            document.getElementById('branch-nodes').textContent = stats.branch_nodes || 0;
-            document.getElementById('total-branches').textContent = stats.total_branches || 0;
-        } catch (error) {
-            console.error('获取统计信息失败:', error);
-            // 使用本地计算作为备用
-            const nodes = this.storyData.nodes || [];
-            const mainNodes = nodes.filter(n => n.type === 'main');
-            const branchNodes = nodes.filter(n => n.type === 'branch');
-            const totalBranches = mainNodes.reduce((sum, n) => sum + (n.branches ? n.branches.length : 0), 0);
-            
-            document.getElementById('total-nodes').textContent = nodes.length;
-            document.getElementById('main-nodes').textContent = mainNodes.length;
-            document.getElementById('branch-nodes').textContent = branchNodes.length;
-            document.getElementById('total-branches').textContent = totalBranches;
+        const stats = this.calculateDetailedStats();
+        document.getElementById('total-nodes').textContent = stats.totalNodes;
+        document.getElementById('main-nodes').textContent = stats.mainNodes;
+        document.getElementById('branch-nodes').textContent = stats.branchNodes;
+        document.getElementById('total-branches').textContent = stats.totalBranches;
+        
+        // 如果当前在概览标签页，更新概览内容
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab && activeTab.dataset.tab === 'story-overview') {
+            this.loadStoryOverview();
         }
     }
     
@@ -1237,6 +1239,495 @@ StoryEditor.prototype.onNodeDrop = function(e, targetNode) {
     this.renderNodeList();
     this.markUnsaved();
     this.clearDragStyles();
+};
+
+// 标签页系统
+StoryEditor.prototype.switchTab = function(tabId) {
+    // 更新标签按钮状态
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+    
+    // 更新标签页内容
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+    });
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    
+    // 根据标签页类型加载内容
+    switch(tabId) {
+        case 'story-overview':
+            this.loadStoryOverview();
+            break;
+        case 'flow-chart':
+            this.loadFlowChart();
+            break;
+        case 'validation':
+            this.loadValidation();
+            break;
+        case 'export':
+            this.loadExportOptions();
+            break;
+    }
+};
+
+// 剧情概览功能
+StoryEditor.prototype.loadStoryOverview = function() {
+    if (!this.storyData) return;
+    
+    const statsContainer = document.getElementById('overview-stats');
+    const stats = this.calculateDetailedStats();
+    
+    statsContainer.innerHTML = `
+        <div class="stat-card">
+            <span class="stat-number">${stats.totalNodes}</span>
+            <div class="stat-label">总节点数</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${stats.mainNodes}</span>
+            <div class="stat-label">主线节点</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${stats.branchNodes}</span>
+            <div class="stat-label">分支节点</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${stats.totalBranches}</span>
+            <div class="stat-label">分支选项</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${stats.avgContentLength}</span>
+            <div class="stat-label">平均内容长度</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">${stats.completionRate}%</span>
+            <div class="stat-label">完成度</div>
+        </div>
+    `;
+    
+    // 加载节点分布图
+    this.loadNodeDistribution();
+    
+    // 加载问题检测
+    this.loadIssueDetection();
+    
+    // 加载剧情路径
+    this.loadStoryPaths();
+};
+
+StoryEditor.prototype.calculateDetailedStats = function() {
+    if (!this.storyData || !this.storyData.nodes) {
+        return {
+            totalNodes: 0, mainNodes: 0, branchNodes: 0, totalBranches: 0,
+            avgContentLength: 0, completionRate: 0
+        };
+    }
+    
+    const nodes = this.storyData.nodes;
+    const mainNodes = nodes.filter(n => n.type === 'main');
+    const branchNodes = nodes.filter(n => n.type === 'branch');
+    const totalBranches = mainNodes.reduce((sum, n) => sum + (n.branches ? n.branches.length : 0), 0);
+    
+    const totalContentLength = nodes.reduce((sum, n) => sum + (n.content ? n.content.length : 0), 0);
+    const avgContentLength = nodes.length > 0 ? Math.round(totalContentLength / nodes.length) : 0;
+    
+    const completeNodes = nodes.filter(n => n.title && n.title.trim() && n.content && n.content.trim()).length;
+    const completionRate = nodes.length > 0 ? Math.round((completeNodes / nodes.length) * 100) : 0;
+    
+    return {
+        totalNodes: nodes.length,
+        mainNodes: mainNodes.length,
+        branchNodes: branchNodes.length,
+        totalBranches,
+        avgContentLength,
+        completionRate
+    };
+};
+
+StoryEditor.prototype.loadNodeDistribution = function() {
+    const container = document.getElementById('node-distribution');
+    const stats = this.calculateDetailedStats();
+    
+    // 简单的文本图表，后续可以用真正的图表库
+    container.innerHTML = `
+        <div style="display: flex; align-items: end; gap: 10px; height: 100px; padding: 20px;">
+            <div style="background: #667eea; width: 40px; height: ${(stats.mainNodes / stats.totalNodes) * 80}px; border-radius: 4px 4px 0 0;"></div>
+            <div style="background: #17a2b8; width: 40px; height: ${(stats.branchNodes / stats.totalNodes) * 80}px; border-radius: 4px 4px 0 0;"></div>
+        </div>
+        <div style="display: flex; gap: 10px; padding: 0 20px;">
+            <div style="width: 40px; text-align: center; font-size: 0.8rem;">主线</div>
+            <div style="width: 40px; text-align: center; font-size: 0.8rem;">分支</div>
+        </div>
+    `;
+};
+
+StoryEditor.prototype.loadIssueDetection = function() {
+    const container = document.getElementById('issue-detection');
+    const issues = this.detectIssues();
+    
+    if (issues.length === 0) {
+        container.innerHTML = '<div class="issue-item success">✅ 未发现问题</div>';
+        return;
+    }
+    
+    container.innerHTML = issues.map(issue => `
+        <div class="issue-item ${issue.type}">
+            ${issue.type === 'error' ? '❌' : '⚠️'} ${issue.message}
+        </div>
+    `).join('');
+};
+
+StoryEditor.prototype.detectIssues = function() {
+    if (!this.storyData || !this.storyData.nodes) return [];
+    
+    const issues = [];
+    const nodes = this.storyData.nodes;
+    const nodeIds = new Set(nodes.map(n => n.id));
+    
+    nodes.forEach(node => {
+        // 检查空标题
+        if (!node.title || !node.title.trim()) {
+            issues.push({
+                type: 'warning',
+                message: `节点 ${node.id} 缺少标题`
+            });
+        }
+        
+        // 检查空内容
+        if (!node.content || !node.content.trim()) {
+            issues.push({
+                type: 'warning',
+                message: `节点 ${node.id} 缺少内容`
+            });
+        }
+        
+        // 检查无效的 next 引用
+        if (node.next && !nodeIds.has(node.next)) {
+            issues.push({
+                type: 'error',
+                message: `节点 ${node.id} 引用了不存在的节点 ${node.next}`
+            });
+        }
+        
+        // 检查分支引用
+        if (node.branches) {
+            node.branches.forEach((branch, index) => {
+                if (branch.entry && !nodeIds.has(branch.entry)) {
+                    issues.push({
+                        type: 'error',
+                        message: `节点 ${node.id} 的分支 ${index + 1} 引用了不存在的入口节点 ${branch.entry}`
+                    });
+                }
+                if (branch.exit && !nodeIds.has(branch.exit)) {
+                    issues.push({
+                        type: 'error',
+                        message: `节点 ${node.id} 的分支 ${index + 1} 引用了不存在的出口节点 ${branch.exit}`
+                    });
+                }
+            });
+        }
+    });
+    
+    return issues;
+};
+
+StoryEditor.prototype.loadStoryPaths = function() {
+    const container = document.getElementById('story-paths');
+    const paths = this.analyzeStoryPaths();
+    
+    if (paths.length === 0) {
+        container.innerHTML = '<div class="path-item">暂无完整路径</div>';
+        return;
+    }
+    
+    container.innerHTML = paths.slice(0, 5).map((path, index) => `
+        <div class="path-item">
+            路径 ${index + 1}: ${path.join(' → ')} (${path.length} 步)
+        </div>
+    `).join('');
+};
+
+StoryEditor.prototype.analyzeStoryPaths = function() {
+    if (!this.storyData || !this.storyData.nodes || this.storyData.nodes.length === 0) return [];
+    
+    const paths = [];
+    const visited = new Set();
+    
+    // 从第一个节点开始分析路径
+    const startNode = this.storyData.nodes[0];
+    if (startNode) {
+        this.findPaths(startNode.id, [], paths, visited, 10); // 限制最大深度为10
+    }
+    
+    return paths;
+};
+
+StoryEditor.prototype.findPaths = function(nodeId, currentPath, allPaths, visited, maxDepth) {
+    if (maxDepth <= 0 || visited.has(nodeId)) return;
+    
+    const node = this.storyData.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    const newPath = [...currentPath, node.id];
+    visited.add(nodeId);
+    
+    // 如果没有下一个节点，这是一个完整路径
+    if (!node.next && (!node.branches || node.branches.length === 0)) {
+        allPaths.push(newPath);
+    } else {
+        // 继续探索下一个节点
+        if (node.next) {
+            this.findPaths(node.next, newPath, allPaths, new Set(visited), maxDepth - 1);
+        }
+        
+        // 探索分支
+        if (node.branches) {
+            node.branches.forEach(branch => {
+                if (branch.entry) {
+                    this.findPaths(branch.entry, newPath, allPaths, new Set(visited), maxDepth - 1);
+                }
+            });
+        }
+    }
+};
+
+// 流程图功能
+StoryEditor.prototype.loadFlowChart = function() {
+    const container = document.getElementById('flow-chart-container');
+    container.innerHTML = '<div class="empty-state"><p>点击"刷新图表"生成剧情流程图</p></div>';
+};
+
+StoryEditor.prototype.refreshFlowChart = function() {
+    if (!this.storyData || !this.storyData.nodes.length) {
+        this.showModal('提示', '请先加载剧情数据');
+        return;
+    }
+    
+    const container = document.getElementById('flow-chart-container');
+    const showContent = document.getElementById('show-content-preview').checked;
+    const showBranches = document.getElementById('show-branch-details').checked;
+    
+    // 生成简单的文本流程图
+    let chartHtml = '<div style="padding: 20px; font-family: monospace; line-height: 1.6;">';
+    
+    this.storyData.nodes.forEach((node, index) => {
+        const indent = node.type === 'branch' ? '    ' : '';
+        const icon = node.type === 'main' ? '●' : '○';
+        
+        chartHtml += `<div style="margin: 10px 0; padding: 10px; background: ${node.type === 'main' ? '#f0f8ff' : '#fff8f0'}; border-radius: 4px;">`;
+        chartHtml += `${indent}${icon} <strong>${node.id}</strong>: ${node.title || '未命名'}`;
+        
+        if (showContent && node.content) {
+            const preview = node.content.length > 50 ? node.content.substring(0, 50) + '...' : node.content;
+            chartHtml += `<br>${indent}   "${preview}"`;
+        }
+        
+        if (node.next) {
+            chartHtml += `<br>${indent}   → ${node.next}`;
+        }
+        
+        if (showBranches && node.branches && node.branches.length > 0) {
+            node.branches.forEach(branch => {
+                chartHtml += `<br>${indent}   ├─ ${branch.choice} → ${branch.entry || '?'} → ${branch.exit || '?'}`;
+            });
+        }
+        
+        chartHtml += '</div>';
+    });
+    
+    chartHtml += '</div>';
+    container.innerHTML = chartHtml;
+};
+
+StoryEditor.prototype.exportChart = function() {
+    this.showModal('提示', '图表导出功能开发中...', { showCancel: false });
+};
+
+// 验证功能
+StoryEditor.prototype.loadValidation = function() {
+    const container = document.getElementById('validation-results');
+    container.innerHTML = '<div class="empty-state"><p>点击"运行检查"开始验证剧情完整性</p></div>';
+};
+
+StoryEditor.prototype.runValidation = function() {
+    if (!this.storyData) {
+        this.showModal('提示', '请先加载剧情数据');
+        return;
+    }
+    
+    const container = document.getElementById('validation-results');
+    const issues = this.detectIssues();
+    const stats = this.calculateDetailedStats();
+    
+    let html = '';
+    
+    // 基本统计
+    html += `
+        <div class="validation-item success">
+            <div class="validation-icon">📊</div>
+            <div class="validation-message">
+                <div class="validation-title">基本统计</div>
+                <div class="validation-description">
+                    总节点: ${stats.totalNodes}, 主线: ${stats.mainNodes}, 分支: ${stats.branchNodes}, 完成度: ${stats.completionRate}%
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 问题检测
+    if (issues.length === 0) {
+        html += `
+            <div class="validation-item success">
+                <div class="validation-icon">✅</div>
+                <div class="validation-message">
+                    <div class="validation-title">验证通过</div>
+                    <div class="validation-description">未发现任何问题，剧情结构完整</div>
+                </div>
+            </div>
+        `;
+    } else {
+        issues.forEach(issue => {
+            html += `
+                <div class="validation-item ${issue.type}">
+                    <div class="validation-icon">${issue.type === 'error' ? '❌' : '⚠️'}</div>
+                    <div class="validation-message">
+                        <div class="validation-title">${issue.type === 'error' ? '错误' : '警告'}</div>
+                        <div class="validation-description">${issue.message}</div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    container.innerHTML = html;
+};
+
+// 导出功能
+StoryEditor.prototype.loadExportOptions = function() {
+    // 导出选项已在 HTML 中定义，无需额外加载
+};
+
+StoryEditor.prototype.exportAs = function(format) {
+    if (!this.storyData) {
+        this.showModal('提示', '请先加载剧情数据');
+        return;
+    }
+    
+    switch(format) {
+        case 'txt':
+            this.exportAsText();
+            break;
+        case 'md':
+            this.exportAsMarkdown();
+            break;
+        case 'json':
+            this.exportAsJSON();
+            break;
+        case 'csv':
+            this.exportAsCSV();
+            break;
+        default:
+            this.showModal('提示', `${format.toUpperCase()} 导出功能开发中...`, { showCancel: false });
+    }
+};
+
+StoryEditor.prototype.exportAsText = function() {
+    let content = `剧情：${this.storyData.title}\n`;
+    content += `生成时间：${new Date().toLocaleString()}\n`;
+    content += `节点总数：${this.storyData.nodes.length}\n\n`;
+    content += '='.repeat(50) + '\n\n';
+    
+    this.storyData.nodes.forEach((node, index) => {
+        content += `${index + 1}. 节点ID：${node.id}\n`;
+        content += `   类型：${node.type === 'main' ? '主线节点' : '分支节点'}\n`;
+        content += `   标题：${node.title || '未命名'}\n`;
+        content += `   内容：${node.content || '无内容'}\n`;
+        
+        if (node.next) {
+            content += `   下一节点：${node.next}\n`;
+        }
+        
+        if (node.branches && node.branches.length > 0) {
+            content += `   分支选项：\n`;
+            node.branches.forEach((branch, i) => {
+                content += `     ${i + 1}. ${branch.choice} → ${branch.entry} → ${branch.exit}\n`;
+            });
+        }
+        
+        content += '\n' + '-'.repeat(30) + '\n\n';
+    });
+    
+    this.downloadFile(`${this.storyData.title || '剧情'}.txt`, content, 'text/plain');
+};
+
+StoryEditor.prototype.exportAsMarkdown = function() {
+    let content = `# ${this.storyData.title}\n\n`;
+    content += `**生成时间：** ${new Date().toLocaleString()}  \n`;
+    content += `**节点总数：** ${this.storyData.nodes.length}\n\n`;
+    
+    this.storyData.nodes.forEach((node, index) => {
+        content += `## ${index + 1}. ${node.id}\n\n`;
+        content += `**类型：** ${node.type === 'main' ? '主线节点' : '分支节点'}  \n`;
+        content += `**标题：** ${node.title || '未命名'}  \n\n`;
+        
+        if (node.content) {
+            content += `**内容：**\n\n${node.content}\n\n`;
+        }
+        
+        if (node.next) {
+            content += `**下一节点：** ${node.next}\n\n`;
+        }
+        
+        if (node.branches && node.branches.length > 0) {
+            content += `**分支选项：**\n\n`;
+            node.branches.forEach((branch, i) => {
+                content += `${i + 1}. ${branch.choice} → ${branch.entry} → ${branch.exit}\n`;
+            });
+            content += '\n';
+        }
+        
+        content += '---\n\n';
+    });
+    
+    this.downloadFile(`${this.storyData.title || '剧情'}.md`, content, 'text/markdown');
+};
+
+StoryEditor.prototype.exportAsJSON = function() {
+    const content = JSON.stringify(this.storyData, null, 2);
+    this.downloadFile(`${this.storyData.title || '剧情'}.json`, content, 'application/json');
+};
+
+StoryEditor.prototype.exportAsCSV = function() {
+    let content = 'ID,类型,标题,内容,下一节点,分支数量\n';
+    
+    this.storyData.nodes.forEach(node => {
+        const row = [
+            node.id,
+            node.type === 'main' ? '主线节点' : '分支节点',
+            `"${(node.title || '').replace(/"/g, '""')}"`,
+            `"${(node.content || '').replace(/"/g, '""')}"`,
+            node.next || '',
+            node.branches ? node.branches.length : 0
+        ];
+        content += row.join(',') + '\n';
+    });
+    
+    this.downloadFile(`${this.storyData.title || '剧情'}.csv`, content, 'text/csv');
+};
+
+StoryEditor.prototype.downloadFile = function(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    this.showModal('成功', `文件 "${filename}" 已下载`, { showCancel: false });
 };
 
 StoryEditor.prototype.clearDragStyles = function() {
