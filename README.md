@@ -5,6 +5,16 @@
 ![DND Manager](https://img.shields.io/badge/DND-Manager-blue?style=for-the-badge&logo=dungeons-dragons)
 ![Python](https://img.shields.io/badge/Python-3.7+-green?style=for-the-badge&logo=python)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+**一个现代化的 DND 跑团资料管理工具**
+
+集成数据管理 • 剧情可视化 • 现代化界面
+
+[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用指南](#-使用指南) • [开发](#-开发)
+
+</div>
+
+<img width="2560" height="1229" alt="image" src="https://github.com/user-attachments/assets/dc04d411-323e-4a41-988c-a579ff06965f" />
+<img width="1794" height="626" alt="image" src="https://github.com/user-attachments/assets/22715d10-41cb-40f8-9056-404177a80878" />
 
 <img width="1502" height="940" alt="image" src="https://github.com/user-attachments/assets/d0dc5d67-34ba-4990-9a39-2ec2de0c7afa" />
 
@@ -13,13 +23,7 @@
 <img width="762" height="1045" alt="image" src="https://github.com/user-attachments/assets/67518806-ae80-44ba-9690-58feb6bf7bc2" />
 
 
-**一个现代化的 DND 跑团资料管理工具**
 
-集成数据管理 • 剧情可视化 • 现代化界面
-
-[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用指南](#-使用指南) • [开发](#-开发)
-
-</div>
 
 ---
 
@@ -334,3 +338,4 @@ Made with ❤️ for D&D enthusiasts
 
 
 </div>
+
