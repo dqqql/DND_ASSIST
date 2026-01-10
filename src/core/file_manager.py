@@ -369,3 +369,49 @@ class FileManagerService:
             return None
         
         return self.read_text_file(file_path)
+    
+    def save_file_content(self, campaign_name: str, category: str, filename: str, content: str) -> tuple[bool, str]:
+        """保存文件内容
+        
+        Args:
+            campaign_name: 跑团名称
+            category: 分类名称
+            filename: 文件名
+            content: 文件内容
+            
+        Returns:
+            tuple[bool, str]: (是否成功, 消息)
+        """
+        # 切换到指定跑团
+        original_campaign = self.campaign_service.get_current_campaign()
+        campaign = self.campaign_service.select_campaign(campaign_name)
+        
+        if not campaign:
+            return False, f"跑团 '{campaign_name}' 不存在"
+        
+        try:
+            # 获取文件路径
+            file_path = self.get_file_path(category, filename)
+            if not file_path:
+                # 如果文件不存在，尝试创建
+                if category == "notes" and not filename.endswith('.json') and not filename.endswith('.txt'):
+                    # 对于notes分类，如果没有扩展名，默认添加.txt
+                    filename = filename + '.txt'
+                
+                # 构建目标路径
+                target_dir = campaign.get_category_path(category)
+                target_dir.mkdir(parents=True, exist_ok=True)
+                file_path = target_dir / filename
+            
+            # 保存文件内容
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                return True, f"文件 '{filename}' 保存成功"
+            except Exception as e:
+                return False, f"保存文件失败: {str(e)}"
+                
+        finally:
+            # 恢复原来的跑团
+            if original_campaign:
+                self.campaign_service.select_campaign(original_campaign.name)
