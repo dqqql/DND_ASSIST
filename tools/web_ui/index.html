@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DND 跑团管理器</title>
+    <link rel="stylesheet" href="index.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">🎲</span>
+                <h1 class="logo-text">DND 跑团管理器</h1>
+            </div>
+            <div class="header-actions">
+                <button id="refreshBtn" class="btn btn-secondary" title="刷新数据">
+                    <span class="icon">🔄</span>
+                    刷新
+                </button>
+                <button id="helpBtn" class="btn btn-secondary" title="帮助信息">
+                    <span class="icon">❓</span>
+                    帮助
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要内容区域 -->
+    <main class="main">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <h2 class="section-title">跑团列表</h2>
+                    <button id="createCampaignBtn" class="btn btn-primary btn-sm" title="创建新跑团">
+                        <span class="icon">➕</span>
+                        新建
+                    </button>
+                </div>
+                <div class="campaign-list" id="campaignList">
+                    <div class="loading">正在加载跑团列表...</div>
+                </div>
+            </div>
+
+            <div class="sidebar-section" id="campaignActions" style="display: none;">
+                <div class="section-header">
+                    <h3 class="section-title">跑团操作</h3>
+                </div>
+                <div class="action-buttons">
+                    <button id="deleteCampaignBtn" class="btn btn-danger btn-sm">
+                        <span class="icon">🗑️</span>
+                        删除跑团
+                    </button>
+                    <button id="webViewBtn" class="btn btn-secondary btn-sm">
+                        <span class="icon">👥</span>
+                        角色卡查看
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区域 -->
+        <div class="content">
+            <!-- 欢迎页面 -->
+            <div id="welcomePage" class="welcome-page">
+                <div class="welcome-content">
+                    <div class="welcome-icon">🎲</div>
+                    <h2 class="welcome-title">欢迎使用 DND 跑团管理器</h2>
+                    <p class="welcome-description">
+                        现代化的Web界面跑团管理工具，让你的D&D冒险更加精彩！
+                    </p>
+                    <div class="welcome-features">
+                        <div class="feature">
+                            <span class="feature-icon">📝</span>
+                            <div class="feature-text">
+                                <h3>内容管理</h3>
+                                <p>管理人物卡、怪物卡、地图和剧情</p>
+                            </div>
+                        </div>
+                        <div class="feature">
+                            <span class="feature-icon">🌐</span>
+                            <div class="feature-text">
+                                <h3>Web编辑器</h3>
+                                <p>现代化的剧情编辑体验</p>
+                            </div>
+                        </div>
+                        <div class="feature">
+                            <span class="feature-icon">📊</span>
+                            <div class="feature-text">
+                                <h3>可视化</h3>
+                                <p>剧情流程图生成和预览</p>
+                            </div>
+                        </div>
+                        <div class="feature">
+                            <span class="feature-icon">🔒</span>
+                            <div class="feature-text">
+                                <h3>安全机制</h3>
+                                <p>软删除和文件恢复功能</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="welcome-actions">
+                        <button id="createFirstCampaignBtn" class="btn btn-primary btn-lg">
+                            <span class="icon">🎯</span>
+                            创建第一个跑团
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 跑团管理页面 -->
+            <div id="campaignPage" class="campaign-page" style="display: none;">
+                <!-- 分类标签 -->
+                <div class="category-tabs">
+                    <button class="tab-btn active" data-category="characters">
+                        <span class="icon">👥</span>
+                        人物卡
+                    </button>
+                    <button class="tab-btn" data-category="monsters">
+                        <span class="icon">👹</span>
+                        怪物卡
+                    </button>
+                    <button class="tab-btn" data-category="maps">
+                        <span class="icon">🗺️</span>
+                        地图
+                    </button>
+                    <button class="tab-btn" data-category="notes">
+                        <span class="icon">📖</span>
+                        剧情
+                    </button>
+                </div>
+
+                <!-- 内容区域 -->
+                <div class="content-area">
+                    <!-- 工具栏 -->
+                    <div class="toolbar">
+                        <div class="toolbar-left">
+                            <h2 id="categoryTitle" class="category-title">人物卡</h2>
+                            <span id="fileCount" class="file-count">0 个文件</span>
+                        </div>
+                        <div class="toolbar-right">
+                            <button id="createFileBtn" class="btn btn-primary">
+                                <span class="icon">📝</span>
+                                新建文件
+                            </button>
+                            <button id="importFileBtn" class="btn btn-secondary" style="display: none;">
+                                <span class="icon">📁</span>
+                                导入文件
+                            </button>
+                            <button id="showHiddenBtn" class="btn btn-secondary">
+                                <span class="icon">👁️</span>
+                                显示隐藏
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 文件列表和内容查看器 -->
+                    <div class="content-layout">
+                        <!-- 文件列表 -->
+                        <div class="file-panel">
+                            <div class="file-list" id="fileList">
+                                <div class="loading">正在加载文件列表...</div>
+                            </div>
+                        </div>
+
+                        <!-- 内容查看器 -->
+                        <div class="viewer-panel">
+                            <div class="viewer-header">
+                                <h3 class="viewer-title">文件内容</h3>
+                                <div class="viewer-actions" id="viewerActions" style="display: none;">
+                                    <button id="editFileBtn" class="btn btn-primary btn-sm">
+                                        <span class="icon">✏️</span>
+                                        编辑
+                                    </button>
+                                    <button id="deleteFileBtn" class="btn btn-danger btn-sm">
+                                        <span class="icon">🗑️</span>
+                                        删除
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="viewer-content" id="viewerContent">
+                                <div class="viewer-placeholder">
+                                    <span class="placeholder-icon">📄</span>
+                                    <p>选择文件查看内容</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 模态对话框 -->
+    <div id="modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle" class="modal-title">对话框</h3>
+                <button id="modalClose" class="modal-close">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body">
+                <!-- 动态内容 -->
+            </div>
+            <div id="modalFooter" class="modal-footer">
+                <button id="modalCancel" class="btn btn-secondary">取消</button>
+                <button id="modalConfirm" class="btn btn-primary">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知系统 -->
+    <div id="notifications" class="notifications"></div>
+
+    <!-- 加载脚本 -->
+    <script src="index.js"></script>
+</body>
+</html>

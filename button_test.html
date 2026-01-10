@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>按钮功能测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { background: #f8f9fa; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .btn:active { background: #004085; }
+        .result { background: white; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🔘 按钮功能测试</h1>
+    
+    <div class="test-section">
+        <h2>基础按钮测试</h2>
+        <button class="btn" onclick="testBasicClick()">基础点击测试</button>
+        <button class="btn" onclick="testAPICall()">API调用测试</button>
+        <button class="btn" onclick="testModalDialog()">模态对话框测试</button>
+        <div id="basicResult" class="result">等待测试...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>主界面按钮模拟</h2>
+        <button class="btn" id="mockRefreshBtn">刷新按钮</button>
+        <button class="btn" id="mockCreateBtn">创建跑团</button>
+        <button class="btn" id="mockHelpBtn">帮助按钮</button>
+        <div id="mockResult" class="result">点击上方按钮测试...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>事件绑定测试</h2>
+        <button class="btn" onclick="testEventBinding()">测试事件绑定</button>
+        <div id="eventResult" class="result">等待测试...</div>
+    </div>
+
+    <script>
+        // 过滤扩展程序错误
+        window.onerror = function(message, source, lineno, colno, error) {
+            if (message && message.includes('runtime.lastError')) {
+                return true; // 忽略扩展程序错误
+            }
+            console.error('真实错误:', message);
+            return false;
+        };
+
+        function testBasicClick() {
+            const result = document.getElementById('basicResult');
+            result.innerHTML = '✅ 基础点击功能正常！时间：' + new Date().toLocaleString();
+            result.className = 'result success';
+            console.log('基础点击测试通过');
+        }
+
+        async function testAPICall() {
+            const result = document.getElementById('basicResult');
+            result.innerHTML = '正在测试API调用...';
+            result.className = 'result';
+            
+            try {
+                const response = await fetch('/api/campaigns');
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML = `✅ API调用成功！<br>数据：${JSON.stringify(data, null, 2)}`;
+                    result.className = 'result success';
+                    console.log('API调用测试通过', data);
+                } else {
+                    result.innerHTML = `❌ API调用失败：${response.status}`;
+                    result.className = 'result error';
+                }
+            } catch (error) {
+                result.innerHTML = `❌ API调用异常：${error.message}`;
+                result.className = 'result error';
+                console.error('API调用测试失败', error);
+            }
+        }
+
+        function testModalDialog() {
+            const result = document.getElementById('basicResult');
+            
+            // 创建简单的模态对话框
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+            `;
+            
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                text-align: center;
+            `;
+            content.innerHTML = `
+                <h3>测试模态对话框</h3>
+                <p>这是一个测试对话框</p>
+                <button class="btn" onclick="this.closest('[style*=fixed]').remove()">关闭</button>
+            `;
+            
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            result.innerHTML = '✅ 模态对话框创建成功！';
+            result.className = 'result success';
+            console.log('模态对话框测试通过');
+        }
+
+        function testEventBinding() {
+            const result = document.getElementById('eventResult');
+            result.innerHTML = '正在测试事件绑定...';
+            
+            try {
+                // 测试addEventListener
+                const testBtn = document.createElement('button');
+                testBtn.textContent = '临时测试按钮';
+                testBtn.className = 'btn';
+                
+                let eventFired = false;
+                testBtn.addEventListener('click', function() {
+                    eventFired = true;
+                    console.log('事件监听器触发');
+                });
+                
+                // 添加到页面并触发点击
+                document.body.appendChild(testBtn);
+                testBtn.click();
+                
+                // 检查结果
+                if (eventFired) {
+                    result.innerHTML = '✅ 事件绑定正常工作！';
+                    result.className = 'result success';
+                    console.log('事件绑定测试通过');
+                } else {
+                    result.innerHTML = '❌ 事件绑定失败！';
+                    result.className = 'result error';
+                }
+                
+                // 清理
+                testBtn.remove();
+                
+            } catch (error) {
+                result.innerHTML = `❌ 事件绑定测试异常：${error.message}`;
+                result.className = 'result error';
+                console.error('事件绑定测试失败', error);
+            }
+        }
+
+        // 模拟主界面按钮的事件绑定
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，绑定模拟按钮事件');
+            
+            const mockResult = document.getElementById('mockResult');
+            
+            // 模拟刷新按钮
+            document.getElementById('mockRefreshBtn').addEventListener('click', function() {
+                mockResult.innerHTML = '✅ 刷新按钮点击成功！';
+                mockResult.className = 'result success';
+                console.log('模拟刷新按钮点击');
+            });
+            
+            // 模拟创建按钮
+            document.getElementById('mockCreateBtn').addEventListener('click', function() {
+                mockResult.innerHTML = '✅ 创建跑团按钮点击成功！';
+                mockResult.className = 'result success';
+                console.log('模拟创建按钮点击');
+            });
+            
+            // 模拟帮助按钮
+            document.getElementById('mockHelpBtn').addEventListener('click', function() {
+                mockResult.innerHTML = '✅ 帮助按钮点击成功！';
+                mockResult.className = 'result success';
+                console.log('模拟帮助按钮点击');
+            });
+            
+            console.log('所有模拟按钮事件绑定完成');
+        });
+
+        // 自动运行基础测试
+        setTimeout(function() {
+            console.log('自动运行基础测试');
+            testBasicClick();
+        }, 1000);
+    </script>
+</body>
+</html>

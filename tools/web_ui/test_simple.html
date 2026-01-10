@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .result { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>简单功能测试</h1>
+    
+    <button id="testBtn" class="btn">点击测试</button>
+    <button id="apiBtn" class="btn">测试API</button>
+    
+    <div id="result" class="result">等待测试...</div>
+
+    <script>
+        console.log('脚本开始执行');
+        
+        // 测试基本功能
+        document.getElementById('testBtn').addEventListener('click', function() {
+            console.log('按钮被点击');
+            document.getElementById('result').innerHTML = '✅ 按钮点击正常！时间：' + new Date().toLocaleString();
+        });
+        
+        // 测试API
+        document.getElementById('apiBtn').addEventListener('click', async function() {
+            console.log('API测试开始');
+            const result = document.getElementById('result');
+            result.innerHTML = '正在测试API...';
+            
+            try {
+                const response = await fetch('/api/campaigns');
+                const data = await response.json();
+                result.innerHTML = '✅ API测试成功：' + JSON.stringify(data, null, 2);
+                console.log('API测试成功', data);
+            } catch (error) {
+                result.innerHTML = '❌ API测试失败：' + error.message;
+                console.error('API测试失败', error);
+            }
+        });
+        
+        console.log('脚本执行完成');
+        
+        // 页面加载完成测试
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM加载完成');
+            document.getElementById('result').innerHTML = '✅ 页面加载完成，脚本正常运行';
+        });
+    </script>
+</body>
+</html>

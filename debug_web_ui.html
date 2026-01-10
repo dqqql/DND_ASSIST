@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web UI 调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎲 DND 跑团管理器 - Web UI 调试</h1>
+    
+    <div class="debug-section">
+        <h2>API 连接测试</h2>
+        <button class="btn" onclick="testApiConnection()">测试 API 连接</button>
+        <button class="btn" onclick="testGetCampaigns()">获取跑团列表</button>
+        <button class="btn" onclick="testCreateCampaign()">创建测试跑团</button>
+        <button class="btn" onclick="testDeleteCampaign()">删除测试跑团</button>
+        <div id="apiResult" class="result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>JavaScript 功能测试</h2>
+        <button class="btn" onclick="testBasicJS()">测试基础 JavaScript</button>
+        <button class="btn" onclick="testFetchAPI()">测试 Fetch API</button>
+        <button class="btn" onclick="testDOMManipulation()">测试 DOM 操作</button>
+        <div id="jsResult" class="result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>错误日志</h2>
+        <button class="btn" onclick="clearErrorLog()">清空日志</button>
+        <div id="errorLog" class="result"></div>
+    </div>
+
+    <script>
+        // 错误捕获
+        window.addEventListener('error', function(e) {
+            logError(`JavaScript Error: ${e.message} at ${e.filename}:${e.lineno}`);
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            logError(`Unhandled Promise Rejection: ${e.reason}`);
+        });
+
+        function logError(message) {
+            const errorLog = document.getElementById('errorLog');
+            const timestamp = new Date().toLocaleTimeString();
+            errorLog.innerHTML += `[${timestamp}] ${message}\n`;
+            errorLog.className = 'result error';
+        }
+
+        function logSuccess(message) {
+            const errorLog = document.getElementById('errorLog');
+            const timestamp = new Date().toLocaleTimeString();
+            errorLog.innerHTML += `[${timestamp}] ✅ ${message}\n`;
+        }
+
+        function clearErrorLog() {
+            document.getElementById('errorLog').innerHTML = '';
+            document.getElementById('errorLog').className = 'result';
+        }
+
+        // API 测试函数
+        async function testApiConnection() {
+            const result = document.getElementById('apiResult');
+            result.innerHTML = '正在测试 API 连接...';
+            
+            try {
+                const response = await fetch('/api/campaigns');
+                if (response.ok) {
+                    result.innerHTML = '✅ API 连接成功';
+                    result.className = 'result success';
+                    logSuccess('API 连接测试通过');
+                } else {
+                    result.innerHTML = `❌ API 连接失败: ${response.status} ${response.statusText}`;
+                    result.className = 'result error';
+                }
+            } catch (error) {
+                result.innerHTML = `❌ API 连接异常: ${error.message}`;
+                result.className = 'result error';
+                logError(`API 连接异常: ${error.message}`);
+            }
+        }
+
+        async function testGetCampaigns() {
+            const result = document.getElementById('apiResult');
+            result.innerHTML = '正在获取跑团列表...';
+            
+            try {
+                const response = await fetch('/api/campaigns');
+                const data = await response.json();
+                
+                result.innerHTML = `✅ 跑团列表获取成功:\n${JSON.stringify(data, null, 2)}`;
+                result.className = 'result success';
+                logSuccess('跑团列表获取成功');
+            } catch (error) {
+                result.innerHTML = `❌ 获取跑团列表失败: ${error.message}`;
+                result.className = 'result error';
+                logError(`获取跑团列表失败: ${error.message}`);
+            }
+        }
+
+        async function testCreateCampaign() {
+            const result = document.getElementById('apiResult');
+            const campaignName = `debug_test_${Date.now()}`;
+            result.innerHTML = `正在创建测试跑团: ${campaignName}...`;
+            
+            try {
+                const response = await fetch('/api/campaigns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: campaignName })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    result.innerHTML = `✅ 跑团创建成功: ${campaignName}\n${JSON.stringify(data, null, 2)}`;
+                    result.className = 'result success';
+                    logSuccess(`跑团创建成功: ${campaignName}`);
+                } else {
+                    result.innerHTML = `❌ 跑团创建失败: ${data.error}`;
+                    result.className = 'result error';
+                }
+            } catch (error) {
+                result.innerHTML = `❌ 创建跑团异常: ${error.message}`;
+                result.className = 'result error';
+                logError(`创建跑团异常: ${error.message}`);
+            }
+        }
+
+        async function testDeleteCampaign() {
+            const result = document.getElementById('apiResult');
+            result.innerHTML = '正在查找并删除测试跑团...';
+            
+            try {
+                // 先获取跑团列表
+                const listResponse = await fetch('/api/campaigns');
+                const listData = await listResponse.json();
+                
+                // 找到测试跑团
+                const testCampaigns = listData.campaigns.filter(name => name.startsWith('debug_test_'));
+                
+                if (testCampaigns.length === 0) {
+                    result.innerHTML = '⚠️ 没有找到测试跑团';
+                    result.className = 'result';
+                    return;
+                }
+                
+                // 删除第一个测试跑团
+                const campaignToDelete = testCampaigns[0];
+                const deleteResponse = await fetch('/api/campaigns', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: campaignToDelete })
+                });
+                
+                const deleteData = await deleteResponse.json();
+                
+                if (deleteData.success) {
+                    result.innerHTML = `✅ 跑团删除成功: ${campaignToDelete}\n${JSON.stringify(deleteData, null, 2)}`;
+                    result.className = 'result success';
+                    logSuccess(`跑团删除成功: ${campaignToDelete}`);
+                } else {
+                    result.innerHTML = `❌ 跑团删除失败: ${deleteData.error}`;
+                    result.className = 'result error';
+                }
+            } catch (error) {
+                result.innerHTML = `❌ 删除跑团异常: ${error.message}`;
+                result.className = 'result error';
+                logError(`删除跑团异常: ${error.message}`);
+            }
+        }
+
+        // JavaScript 功能测试
+        function testBasicJS() {
+            const result = document.getElementById('jsResult');
+            
+            try {
+                // 测试基本功能
+                const testObj = { test: 'value' };
+                const testArray = [1, 2, 3];
+                const testString = 'Hello World';
+                
+                result.innerHTML = `✅ 基础 JavaScript 功能正常:
+对象: ${JSON.stringify(testObj)}
+数组: ${JSON.stringify(testArray)}
+字符串: ${testString}
+当前时间: ${new Date().toLocaleString()}`;
+                result.className = 'result success';
+                logSuccess('基础 JavaScript 测试通过');
+            } catch (error) {
+                result.innerHTML = `❌ 基础 JavaScript 测试失败: ${error.message}`;
+                result.className = 'result error';
+                logError(`基础 JavaScript 测试失败: ${error.message}`);
+            }
+        }
+
+        function testFetchAPI() {
+            const result = document.getElementById('jsResult');
+            
+            if (typeof fetch === 'undefined') {
+                result.innerHTML = '❌ Fetch API 不可用';
+                result.className = 'result error';
+                logError('Fetch API 不可用');
+                return;
+            }
+            
+            result.innerHTML = '✅ Fetch API 可用';
+            result.className = 'result success';
+            logSuccess('Fetch API 测试通过');
+        }
+
+        function testDOMManipulation() {
+            const result = document.getElementById('jsResult');
+            
+            try {
+                // 测试 DOM 操作
+                const testDiv = document.createElement('div');
+                testDiv.innerHTML = 'Test Element';
+                testDiv.style.color = 'blue';
+                
+                // 测试事件监听
+                let eventWorking = false;
+                testDiv.addEventListener('click', () => {
+                    eventWorking = true;
+                });
+                
+                // 模拟点击
+                testDiv.click();
+                
+                result.innerHTML = `✅ DOM 操作功能正常:
+元素创建: ✅
+样式设置: ✅
+事件监听: ${eventWorking ? '✅' : '❌'}
+querySelector: ${document.querySelector ? '✅' : '❌'}
+addEventListener: ${document.addEventListener ? '✅' : '❌'}`;
+                result.className = 'result success';
+                logSuccess('DOM 操作测试通过');
+            } catch (error) {
+                result.innerHTML = `❌ DOM 操作测试失败: ${error.message}`;
+                result.className = 'result error';
+                logError(`DOM 操作测试失败: ${error.message}`);
+            }
+        }
+
+        // 页面加载完成后自动运行基础测试
+        document.addEventListener('DOMContentLoaded', function() {
+            logSuccess('页面加载完成');
+            testBasicJS();
+            testFetchAPI();
+        });
+    </script>
+</body>
+</html>

@@ -77,7 +77,22 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         
         return super().do_POST()
     
-    def do_OPTIONS(self):
+    def do_DELETE(self):
+        """处理 DELETE 请求"""
+        # 记录访问时间
+        if hasattr(self.server, '_preview_server'):
+            self.server._preview_server.last_access_time = time.time()
+        
+        # 检查是否是 API 请求
+        if self.path.startswith('/api/'):
+            try:
+                self._handle_api_request()
+            except Exception as e:
+                print(f"[ERROR] DELETE API请求处理失败: {e}")
+                self._send_error_response(500, f"API请求处理失败: {str(e)}")
+            return
+        
+        return super().do_DELETE() if hasattr(super(), 'do_DELETE') else self._send_error_response(405, "Method not allowed")
         """处理 OPTIONS 请求（CORS 预检）"""
         # 记录访问时间
         if hasattr(self.server, '_preview_server'):
@@ -95,7 +110,7 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         # 对于非 API 请求，返回基本的 CORS 头
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
     
@@ -124,7 +139,9 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
             if self.command == 'GET':
                 self._handle_api_get(path, params, campaign_service, editor_service, file_manager_service)
             elif self.command == 'POST':
-                self._handle_api_post(path, campaign_service, editor_service)
+                self._handle_api_post(path, campaign_service, editor_service, file_manager_service)
+            elif self.command == 'DELETE':
+                self._handle_api_delete(path, campaign_service, editor_service, file_manager_service)
             elif self.command == 'OPTIONS':
                 self._handle_api_options()
             else:
@@ -183,7 +200,7 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         else:
             self._send_api_error(404, "API endpoint not found")
     
-    def _handle_api_post(self, path, campaign_service, editor_service):
+    def _handle_api_post(self, path, campaign_service, editor_service, file_manager_service):
         """处理 POST API 请求"""
         # 读取请求体
         content_length = int(self.headers.get('Content-Length', 0))
@@ -195,7 +212,42 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
             self._send_api_error(400, "Invalid JSON data")
             return
         
-        if path == '/api/story/save':
+        if path == '/api/campaigns':
+            # 创建跑团
+            name = request_data.get('name')
+            if not name:
+                self._send_api_error(400, "Missing campaign name")
+                return
+            
+            success = campaign_service.create_campaign(name)
+            if success:
+                self._send_api_response({"success": True, "message": f"跑团 {name} 创建成功"})
+            else:
+                self._send_api_response({"success": False, "error": "跑团已存在或创建失败"}, status_code=400)
+        elif path == '/api/files':
+            # 创建文件
+            campaign_name = request_data.get('campaign')
+            category = request_data.get('category')
+            filename = request_data.get('filename')
+            file_type = request_data.get('file_type', 'txt')
+            
+            if not campaign_name or not category or not filename:
+                self._send_api_error(400, "Missing required parameters")
+                return
+            
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 创建文件
+            success = file_manager_service.create_file(category, filename)
+            if success:
+                self._send_api_response({"success": True, "message": f"文件 {filename} 创建成功"})
+            else:
+                self._send_api_response({"success": False, "error": "文件创建失败或文件已存在"}, status_code=400)
+        elif path == '/api/story/save':
             campaign_name = request_data.get('campaign')
             story_name = request_data.get('story')
             story_data = request_data.get('data')
@@ -225,6 +277,76 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
             title = request_data.get('title', '新剧情')
             story_data = editor_service.create_new_story(title)
             self._send_api_response(story_data)
+        elif path == '/api/file/save':
+            # 保存文件内容
+            campaign_name = request_data.get('campaign')
+            category = request_data.get('category')
+            filename = request_data.get('filename')
+            content = request_data.get('content')
+            
+            if not campaign_name or not category or not filename or content is None:
+                self._send_api_error(400, "Missing required parameters")
+                return
+            
+            success, message = file_manager_service.save_file_content(
+                campaign_name, category, filename, content
+            )
+            
+            if success:
+                self._send_api_response({"success": True, "message": message})
+            else:
+                self._send_api_response({"success": False, "error": message}, status_code=400)
+        else:
+            self._send_api_error(404, "API endpoint not found")
+    
+    def _handle_api_delete(self, path, campaign_service, editor_service, file_manager_service):
+        """处理 DELETE API 请求"""
+        # 读取请求体
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length > 0:
+            delete_data = self.rfile.read(content_length)
+            try:
+                request_data = json.loads(delete_data.decode('utf-8'))
+            except json.JSONDecodeError:
+                self._send_api_error(400, "Invalid JSON data")
+                return
+        else:
+            request_data = {}
+        
+        if path == '/api/campaigns':
+            # 删除跑团
+            name = request_data.get('name')
+            if not name:
+                self._send_api_error(400, "Missing campaign name")
+                return
+            
+            success = campaign_service.delete_campaign(name)
+            if success:
+                self._send_api_response({"success": True, "message": f"跑团 {name} 删除成功"})
+            else:
+                self._send_api_response({"success": False, "error": "删除跑团失败"}, status_code=400)
+        elif path == '/api/files':
+            # 删除文件
+            campaign_name = request_data.get('campaign')
+            category = request_data.get('category')
+            filename = request_data.get('filename')
+            
+            if not campaign_name or not category or not filename:
+                self._send_api_error(400, "Missing required parameters")
+                return
+            
+            # 选择跑团
+            campaign = campaign_service.select_campaign(campaign_name)
+            if not campaign:
+                self._send_api_error(404, "Campaign not found")
+                return
+            
+            # 删除文件（软删除）
+            success = file_manager_service.delete_file(category, filename)
+            if success:
+                self._send_api_response({"success": True, "message": f"文件 {filename} 删除成功"})
+            else:
+                self._send_api_response({"success": False, "error": "删除文件失败"}, status_code=400)
         else:
             self._send_api_error(404, "API endpoint not found")
     
@@ -232,7 +354,7 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         """处理 OPTIONS API 请求"""
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
     
@@ -243,7 +365,7 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
         
@@ -547,7 +669,7 @@ class WebPreviewServer:
             return True
         
         try:
-            # 切换到服务器根目录
+            # 切换到服务器根目录并保持
             original_cwd = os.getcwd()
             os.chdir(self.base_dir)
             
@@ -568,14 +690,19 @@ class WebPreviewServer:
             if auto_monitor:
                 self.start_monitoring()
             
-            # 恢复原始工作目录
-            os.chdir(original_cwd)
+            # 注意：不要恢复原始工作目录，保持在base_dir
+            # os.chdir(original_cwd)  # 注释掉这行
             
             return True
             
         except Exception as e:
             print(f"启动服务器失败: {e}")
             self.running = False
+            # 如果启动失败，恢复原始目录
+            try:
+                os.chdir(original_cwd)
+            except:
+                pass
             return False
     
     def _run_server(self):
