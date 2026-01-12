@@ -1,0 +1,207 @@
+{
+  "title": "追捕克伦可",
+  "description": "一个关于追捕、阴谋与道德抉择的DND5E冒险故事",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "main",
+      "title": "异常事件出现",
+      "content": "城镇中出现失踪人口、非法交易、黑市价格异常等情况，克伦可的名字被多次提及。\n\nDM笔记：\n- 目的：引导玩家主动调查，而非被动接任务\n- 隐藏信息：克伦可并非主谋，只是携带了关键情报或物品\n- 氛围：悬疑、不安",
+      "next": "target_confirmed",
+      "branches": [
+        {
+          "choice": "询问守卫或治安官",
+          "entry": "official_info",
+          "exit": "target_confirmed"
+        },
+        {
+          "choice": "混入酒馆或黑市",
+          "entry": "tavern_info",
+          "exit": "target_confirmed"
+        },
+        {
+          "choice": "调查案发现场",
+          "entry": "crime_scene",
+          "exit": "target_confirmed"
+        }
+      ]
+    },
+    {
+      "id": "official_info",
+      "type": "branch",
+      "title": "官方信息",
+      "content": "获得官方版本的信息，内容模糊但可靠。守卫告诉你们克伦可涉嫌多起案件，但具体细节被列为机密。",
+      "next": "target_confirmed"
+    },
+    {
+      "id": "tavern_info",
+      "type": "branch",
+      "title": "酒馆传闻",
+      "content": "获得更具体的传闻，但可能被盯上。酒馆里的人们窃窃私语，提到克伦可最近与一些可疑人物接触，但你们的询问引起了某些人的注意。",
+      "next": "target_confirmed"
+    },
+    {
+      "id": "crime_scene",
+      "type": "branch",
+      "title": "现场调查",
+      "content": "发现被刻意清理的痕迹，暗示有专业人士介入。现场过于干净，显然有人想要掩盖什么。",
+      "next": "target_confirmed"
+    },
+    {
+      "id": "target_confirmed",
+      "type": "main",
+      "title": "确认克伦可在逃",
+      "content": "多方情报指向克伦可已逃离城镇，并被至少两个势力追踪。现在你们必须选择追踪的路线。",
+      "next": null,
+      "branches": [
+        {
+          "choice": "追踪地下世界线索",
+          "entry": "underground_contact",
+          "exit": "final_confrontation"
+        },
+        {
+          "choice": "沿荒野逃亡路线追踪",
+          "entry": "wilderness_tracking",
+          "exit": "final_confrontation"
+        }
+      ]
+    },
+    {
+      "id": "underground_contact",
+      "type": "main",
+      "title": "接触地下势力",
+      "content": "玩家找到与克伦可合作过的地下组织。\n\nDM笔记：\n- 目的：引入道德灰色地带\n- 真相：地下势力想要的是克伦可带走的东西，而不是他本人",
+      "next": "underground_conflict",
+      "branches": [
+        {
+          "choice": "贿赂换取情报",
+          "entry": "bribe_info",
+          "exit": "underground_conflict"
+        },
+        {
+          "choice": "威胁或武力施压",
+          "entry": "threat_info",
+          "exit": "underground_conflict"
+        },
+        {
+          "choice": "答应替他们解决麻烦",
+          "entry": "deal_info",
+          "exit": "underground_conflict"
+        }
+      ]
+    },
+    {
+      "id": "bribe_info",
+      "type": "branch",
+      "title": "贿赂结果",
+      "content": "获得准确行踪，但被记录在案。地下势力提供了克伦可的确切位置，但你们的身份已经暴露。",
+      "next": "underground_conflict"
+    },
+    {
+      "id": "threat_info",
+      "type": "branch",
+      "title": "威胁结果",
+      "content": "得到部分信息，引发后续报复。你们通过威胁获得了一些线索，但地下势力记住了你们的面孔。",
+      "next": "underground_conflict"
+    },
+    {
+      "id": "deal_info",
+      "type": "branch",
+      "title": "交易结果",
+      "content": "开启支线任务，换取完整情报。地下势力同意提供完整信息，但需要你们先帮他们解决一个麻烦。",
+      "next": "underground_conflict"
+    },
+    {
+      "id": "underground_conflict",
+      "type": "main",
+      "title": "地下据点冲突",
+      "content": "谈判可能破裂，引发战斗或追逐。紧张的气氛达到顶点，一个错误的举动就可能引发冲突。",
+      "next": "final_confrontation"
+    },
+    {
+      "id": "wilderness_tracking",
+      "type": "main",
+      "title": "追踪克伦可的痕迹",
+      "content": "通过荒野追踪克伦可留下的行踪。\n\nDM笔记：\n- 机制：使用生存、察觉、调查检定\n- 失败前进：失败不会卡关，但会让克伦可获得准备时间",
+      "next": "third_party_encounter",
+      "branches": [
+        {
+          "choice": "成功追踪",
+          "entry": "successful_track",
+          "exit": "third_party_encounter"
+        },
+        {
+          "choice": "追踪失败",
+          "entry": "failed_track",
+          "exit": "third_party_encounter"
+        }
+      ]
+    },
+    {
+      "id": "successful_track",
+      "type": "branch",
+      "title": "成功追踪",
+      "content": "提前接近最终地点。你们成功跟踪到了克伦可的踪迹，比其他追捕者更早到达目标区域。",
+      "next": "third_party_encounter"
+    },
+    {
+      "id": "failed_track",
+      "type": "branch",
+      "title": "追踪失败",
+      "content": "遭遇埋伏或误入危险区域。追踪失败让你们走入了陷阱，或者进入了危险的野兽领地。",
+      "next": "third_party_encounter"
+    },
+    {
+      "id": "third_party_encounter",
+      "type": "main",
+      "title": "遭遇其他追捕者",
+      "content": "玩家遇到同样在寻找克伦可的第三方势力。这些人的目的似乎与你们不同，他们是敌是友？",
+      "next": "final_confrontation"
+    },
+    {
+      "id": "final_confrontation",
+      "type": "main",
+      "title": "面对克伦可",
+      "content": "玩家终于与克伦可本人（或其结局）正面接触。\n\nDM笔记：\n- 核心主题：克伦可是否值得被拯救\n- 揭示：真正的幕后势力与更大的阴谋",
+      "next": null,
+      "branches": [
+        {
+          "choice": "直接战斗",
+          "entry": "combat_ending",
+          "exit": null
+        },
+        {
+          "choice": "尝试谈判",
+          "entry": "negotiation_ending",
+          "exit": null
+        },
+        {
+          "choice": "发现克伦可已死",
+          "entry": "death_ending",
+          "exit": null
+        }
+      ]
+    },
+    {
+      "id": "combat_ending",
+      "type": "main",
+      "title": "正义执行",
+      "content": "获得物品，但失去真相的一部分。通过战斗你们制服了克伦可，获得了他携带的重要物品，但关于更大阴谋的真相随着他的沉默而部分失去。\n\n结局：克伦可被捕，部分阴谋曝光。这是一个英雄式的结局。",
+      "next": null
+    },
+    {
+      "id": "negotiation_ending",
+      "type": "main",
+      "title": "更大的敌人",
+      "content": "完整得知阴谋与选择权。通过谈判，克伦可向你们揭示了真相：他只是一个棋子，真正的幕后黑手仍在暗中操控一切。现在你们面临选择：是满足于抓住克伦可，还是对抗更强大的敌人？\n\n结局：玩家选择对抗真正的幕后势力。这为更大的冒险埋下伏笔。",
+      "next": null
+    },
+    {
+      "id": "death_ending",
+      "type": "main",
+      "title": "真相被掩埋",
+      "content": "只能通过碎片信息拼凑真相。克伦可已经死亡，你们只能通过他留下的线索和物品拼凑出部分真相。幕后势力成功掩盖了大部分证据，阴谋仍在继续。\n\n结局：阴谋继续存在，世界更加阴暗。这是一个现实主义的结局。",
+      "next": null
+    }
+  ]
+}

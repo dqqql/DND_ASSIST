@@ -138,6 +138,10 @@ class App:
         self.delete_button = create_themed_button(button_frame, text="删除文件", width=12, command=self.delete_file, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=action_button_spacing)
         
+        # 恢复按钮
+        self.restore_button = create_themed_button(button_frame, text="恢复文件", width=12, command=self.restore_file, state=tk.DISABLED)
+        self.restore_button.pack(side=tk.LEFT, padx=action_button_spacing)
+        
         # Web 查看按钮
         self.web_view_button = create_themed_button(button_frame, text="Web 查看", width=12, command=self.open_web_viewer, state=tk.DISABLED)
         self.web_view_button.pack(side=tk.LEFT, padx=action_button_spacing)
@@ -288,6 +292,9 @@ class App:
         self.category_buttons.clear()
         # 禁用 Web 查看按钮
         self.web_view_button.config(state=tk.DISABLED)
+        # 禁用删除和恢复按钮
+        self.delete_button.config(state=tk.DISABLED)
+        self.restore_button.config(state=tk.DISABLED)
 
     def show_categories(self):
         self.clear_categories()
@@ -328,6 +335,9 @@ class App:
         
         # 启用删除按钮
         self.delete_button.config(state=tk.NORMAL)
+        
+        # 启用恢复按钮
+        self.restore_button.config(state=tk.NORMAL)
         
         # Prompt 5: 显示或隐藏返回上级按钮
         self.update_back_button()
@@ -1045,6 +1055,97 @@ class App:
             show_themed_info(self.root, "删除成功", f"{file_type}【{actual_name}】已从软件中删除\n\n实际文件仍保存在磁盘上")
         else:
             show_themed_error(self.root, "删除失败", "无法删除文件")
+    
+    def restore_file(self):
+        """恢复文件（从隐藏列表移除）"""
+        if not self.current_category:
+            show_themed_info(self.root, "提示", "请先选择分类")
+            return
+        
+        # 获取隐藏文件列表
+        hidden_files = self.file_service.get_hidden_files(self.current_category, self.current_notes_path)
+        
+        if not hidden_files:
+            show_themed_info(self.root, "提示", "当前分类没有隐藏的文件")
+            return
+        
+        # 创建恢复文件对话框
+        dialog = create_themed_dialog(self.root, "恢复文件", "500x400")
+        
+        # 创建主框架
+        main_frame = tk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 提示标签
+        theme_manager = get_theme_manager()
+        theme = theme_manager.get_current_theme()
+        
+        label = tk.Label(main_frame, text="选择要恢复的文件:", 
+                        font=theme.typography.get_font_tuple(theme.typography.size_medium))
+        theme_manager.apply_theme_to_widget(label, "label", "normal")
+        label.pack(pady=(0, 10))
+        
+        # 文件列表框架
+        list_frame = tk.Frame(main_frame)
+        theme_manager.apply_theme_to_widget(list_frame, "frame", "normal")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        # 文件列表
+        file_listbox = create_enhanced_listbox(list_frame, font=theme.typography.get_font_tuple(theme.typography.size_medium))
+        file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 滚动条
+        scrollbar = tk.Scrollbar(list_frame, command=file_listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        file_listbox.config(yscrollcommand=scrollbar.set)
+        
+        # 填充隐藏文件列表
+        for filename in hidden_files:
+            file_listbox.insert(tk.END, filename)
+        
+        result = {"selected_file": None}
+        
+        def on_restore():
+            sel = file_listbox.curselection()
+            if not sel:
+                show_themed_info(dialog, "提示", "请选择要恢复的文件")
+                return
+            
+            result["selected_file"] = file_listbox.get(sel[0])
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        # 按钮框架
+        button_frame = tk.Frame(main_frame)
+        theme_manager.apply_theme_to_widget(button_frame, "frame", "normal")
+        button_frame.pack(pady=10)
+        
+        # 恢复按钮
+        restore_btn = create_themed_button(button_frame, text="恢复选中文件", command=on_restore, width=15)
+        restore_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 取消按钮
+        cancel_btn = create_themed_button(button_frame, text="取消", command=on_cancel, width=15)
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 双击恢复
+        file_listbox.bind("<Double-Button-1>", lambda e: on_restore())
+        
+        dialog.wait_window()
+        
+        selected_file = result["selected_file"]
+        if not selected_file:
+            return
+        
+        # 执行恢复操作
+        if self.file_service.restore_file(self.current_category, selected_file, self.current_notes_path):
+            # 刷新文件列表
+            self.load_files()
+            show_themed_info(self.root, "恢复成功", f"文件【{selected_file}】已恢复显示")
+        else:
+            show_themed_error(self.root, "恢复失败", "无法恢复文件")
     
     def _on_window_close(self):
         """窗口关闭时的清理工作"""

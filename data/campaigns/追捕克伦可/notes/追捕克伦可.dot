@@ -1,0 +1,66 @@
+digraph Story {
+    rankdir=TB;
+    splines=ortho;
+    nodesep=0.6;
+    ranksep=0.8;
+
+    node [shape=box, style=filled, fontcolor=white, fontname="Microsoft YaHei"];
+    edge [fontname="Microsoft YaHei"];
+
+    "start" [label="异常事件出现\n[start]", fillcolor="#4CAF50", border="none"];
+    "official_info" [label="官方信息\n[official_info]", fillcolor="#2196F3", border="none"];
+    "tavern_info" [label="酒馆传闻\n[tavern_info]", fillcolor="#2196F3", border="none"];
+    "crime_scene" [label="现场调查\n[crime_scene]", fillcolor="#2196F3", border="none"];
+    "target_confirmed" [label="确认克伦可在逃\n[target_confirmed]", fillcolor="#4CAF50", border="none"];
+    "underground_contact" [label="接触地下势力\n[underground_contact]", fillcolor="#4CAF50", border="none"];
+    "bribe_info" [label="贿赂结果\n[bribe_info]", fillcolor="#2196F3", border="none"];
+    "threat_info" [label="威胁结果\n[threat_info]", fillcolor="#2196F3", border="none"];
+    "deal_info" [label="交易结果\n[deal_info]", fillcolor="#2196F3", border="none"];
+    "underground_conflict" [label="地下据点冲突\n[underground_conflict]", fillcolor="#4CAF50", border="none"];
+    "wilderness_tracking" [label="追踪克伦可的痕迹\n[wilderness_tracking]", fillcolor="#4CAF50", border="none"];
+    "successful_track" [label="成功追踪\n[successful_track]", fillcolor="#2196F3", border="none"];
+    "failed_track" [label="追踪失败\n[failed_track]", fillcolor="#2196F3", border="none"];
+    "third_party_encounter" [label="遭遇其他追捕者\n[third_party_encounter]", fillcolor="#4CAF50", border="none"];
+    "final_confrontation" [label="面对克伦可\n[final_confrontation]", fillcolor="#4CAF50", border="none"];
+    "combat_ending" [label="正义执行\n[combat_ending]", fillcolor="#4CAF50", border="none"];
+    "negotiation_ending" [label="更大的敌人\n[negotiation_ending]", fillcolor="#4CAF50", border="none"];
+    "death_ending" [label="真相被掩埋\n[death_ending]", fillcolor="#4CAF50", border="none"];
+
+    "start" -> "target_confirmed";
+    "official_info" -> "target_confirmed";
+    "tavern_info" -> "target_confirmed";
+    "crime_scene" -> "target_confirmed";
+    "underground_contact" -> "underground_conflict";
+    "bribe_info" -> "underground_conflict";
+    "threat_info" -> "underground_conflict";
+    "deal_info" -> "underground_conflict";
+    "underground_conflict" -> "final_confrontation";
+    "wilderness_tracking" -> "third_party_encounter";
+    "successful_track" -> "third_party_encounter";
+    "failed_track" -> "third_party_encounter";
+    "third_party_encounter" -> "final_confrontation";
+
+    "start" -> "official_info" [label="询问守卫或治安官", color="#FF9800", fontcolor="#FF9800"];
+    "official_info" -> "target_confirmed" [style=dashed, color="#9E9E9E"];
+    "start" -> "tavern_info" [label="混入酒馆或黑市", color="#FF9800", fontcolor="#FF9800"];
+    "tavern_info" -> "target_confirmed" [style=dashed, color="#9E9E9E"];
+    "start" -> "crime_scene" [label="调查案发现场", color="#FF9800", fontcolor="#FF9800"];
+    "crime_scene" -> "target_confirmed" [style=dashed, color="#9E9E9E"];
+    "target_confirmed" -> "underground_contact" [label="追踪地下世界线索", color="#FF9800", fontcolor="#FF9800"];
+    "underground_contact" -> "final_confrontation" [style=dashed, color="#9E9E9E"];
+    "target_confirmed" -> "wilderness_tracking" [label="沿荒野逃亡路线追踪", color="#FF9800", fontcolor="#FF9800"];
+    "wilderness_tracking" -> "final_confrontation" [style=dashed, color="#9E9E9E"];
+    "underground_contact" -> "bribe_info" [label="贿赂换取情报", color="#FF9800", fontcolor="#FF9800"];
+    "bribe_info" -> "underground_conflict" [style=dashed, color="#9E9E9E"];
+    "underground_contact" -> "threat_info" [label="威胁或武力施压", color="#FF9800", fontcolor="#FF9800"];
+    "threat_info" -> "underground_conflict" [style=dashed, color="#9E9E9E"];
+    "underground_contact" -> "deal_info" [label="答应替他们解决麻烦", color="#FF9800", fontcolor="#FF9800"];
+    "deal_info" -> "underground_conflict" [style=dashed, color="#9E9E9E"];
+    "wilderness_tracking" -> "successful_track" [label="成功追踪", color="#FF9800", fontcolor="#FF9800"];
+    "successful_track" -> "third_party_encounter" [style=dashed, color="#9E9E9E"];
+    "wilderness_tracking" -> "failed_track" [label="追踪失败", color="#FF9800", fontcolor="#FF9800"];
+    "failed_track" -> "third_party_encounter" [style=dashed, color="#9E9E9E"];
+    "final_confrontation" -> "combat_ending" [label="直接战斗", color="#FF9800", fontcolor="#FF9800"];
+    "final_confrontation" -> "negotiation_ending" [label="尝试谈判", color="#FF9800", fontcolor="#FF9800"];
+    "final_confrontation" -> "death_ending" [label="发现克伦可已死", color="#FF9800", fontcolor="#FF9800"];
+}
