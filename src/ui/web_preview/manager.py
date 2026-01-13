@@ -123,9 +123,11 @@ class WebPreviewManager:
         if not json_path.exists():
             return False
         
-        # 检查 SVG 文件
+        # 如果 SVG 文件不存在，尝试生成
         if not svg_path.exists():
-            return False
+            from .preview_generator import PreviewGenerator
+            generator = PreviewGenerator(self.project_root)
+            generator.generate_preview_for_story(campaign_name, story_name)
         
         return True
     

@@ -1109,9 +1109,28 @@ class StoryEditor:
             messagebox.showerror("加载失败", f"无法加载文件:\n{str(e)}")
 
     def save_story(self):
-        """保存剧情文件 - 必须选择跑团"""
-        # 强制使用保存到跑团功能
-        return self.save_to_campaign()
+        """保存剧情文件"""
+        # 如果已有文件路径，直接保存到原文件
+        if self.file_path:
+            try:
+                # 确保当前编辑的节点已保存
+                if self.current_node:
+                    self.save_node()
+                
+                # 保存到原文件
+                with open(self.file_path, "w", encoding="utf-8") as f:
+                    json.dump(self.data, f, ensure_ascii=False, indent=2)
+                
+                self.mark_saved()
+                self.update_status(f"已保存: {os.path.basename(self.file_path)}")
+                return True
+                
+            except Exception as e:
+                messagebox.showerror("保存失败", f"保存文件时发生错误:\n{str(e)}")
+                return False
+        else:
+            # 如果没有文件路径，使用保存到跑团功能
+            return self.save_to_campaign()
 
     def save_story_as(self):
         """另存为剧情文件 - 重定向到保存到跑团"""

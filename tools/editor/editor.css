@@ -124,7 +124,7 @@ body {
 
 /* 面板通用样式 */
 .left-panel, .right-panel {
-    width: 300px;
+    width: 350px;
     background: white;
     border-right: 1px solid #e0e0e0;
     display: flex;
@@ -940,7 +940,7 @@ textarea.form-control {
 /* 响应式设计 */
 @media (max-width: 1200px) {
     .left-panel, .right-panel {
-        width: 250px;
+        width: 300px;
     }
 }
 

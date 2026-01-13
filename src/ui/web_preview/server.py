@@ -9,18 +9,27 @@ import threading
 import time
 import webbrowser
 import json
+import datetime
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlencode, urlparse
 from typing import Optional, Callable
 
-from .editor_api import EditorAPIHandler
+# 日志文件路径
+LOG_FILE = Path(__file__).parent.parent.parent.parent / "web_editor_debug.log"
 
-try:
-    import psutil
-    HAS_PSUTIL = True
-except ImportError:
-    HAS_PSUTIL = False
+def log_debug(message):
+    """写入调试日志"""
+    try:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] {message}\n")
+            f.flush()
+        print(f"[DEBUG] {message}")
+    except Exception as e:
+        print(f"[ERROR] 写入日志失败: {e}")
+
+from .editor_api import EditorAPIHandler
 
 
 class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
@@ -116,39 +125,65 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
     
     def _handle_api_request(self):
         """处理 API 请求"""
-        # 获取服务实例
-        campaign_service, editor_service, file_manager_service = EditorAPIHandler.get_services()
-        
-        # 解析 URL
-        url_parts = urlparse(self.path)
-        path = url_parts.path
-        
-        # 更安全的参数解析
-        params = {}
-        if url_parts.query:
-            try:
-                import urllib.parse
-                params = urllib.parse.parse_qs(url_parts.query)
-                # 将列表值转换为单个值
-                params = {k: v[0] if v else '' for k, v in params.items()}
-            except Exception as e:
-                print(f"[ERROR] 参数解析失败: {e}")
-                params = {}
-        
         try:
-            if self.command == 'GET':
-                self._handle_api_get(path, params, campaign_service, editor_service, file_manager_service)
-            elif self.command == 'POST':
-                self._handle_api_post(path, campaign_service, editor_service, file_manager_service)
-            elif self.command == 'DELETE':
-                self._handle_api_delete(path, campaign_service, editor_service, file_manager_service)
-            elif self.command == 'OPTIONS':
-                self._handle_api_options()
-            else:
-                self._send_api_error(405, "Method not allowed")
+            # 获取服务实例
+            log_debug("获取服务实例...")
+            campaign_service, editor_service, file_manager_service = EditorAPIHandler.get_services()
+            log_debug("服务实例获取成功")
+            
+            # 解析 URL
+            url_parts = urlparse(self.path)
+            path = url_parts.path
+            
+            log_debug(f"API请求: {self.command} {path}")
+            
+            # 更安全的参数解析
+            params = {}
+            if url_parts.query:
+                try:
+                    import urllib.parse
+                    params = urllib.parse.parse_qs(url_parts.query)
+                    # 将列表值转换为单个值
+                    params = {k: v[0] if v else '' for k, v in params.items()}
+                except Exception as e:
+                    log_debug(f"参数解析失败: {e}")
+                    params = {}
+            
+            # 读取请求体（对于 POST 和 DELETE 请求）
+            request_data = {}
+            if self.command in ['POST', 'DELETE']:
+                try:
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    if content_length > 0:
+                        post_data = self.rfile.read(content_length)
+                        request_data = json.loads(post_data.decode('utf-8'))
+                        log_debug(f"请求数据: {str(request_data)[:200]}...")  # 只记录前200个字符
+                except (ValueError, json.JSONDecodeError) as e:
+                    log_debug(f"请求数据解析失败: {e}")
+                    self._send_api_error(400, f"Invalid request data: {str(e)}")
+                    return
+            
+            try:
+                if self.command == 'GET':
+                    self._handle_api_get(path, params, campaign_service, editor_service, file_manager_service)
+                elif self.command == 'POST':
+                    self._handle_api_post(path, request_data, campaign_service, editor_service, file_manager_service)
+                elif self.command == 'DELETE':
+                    self._handle_api_delete(path, request_data, campaign_service, editor_service, file_manager_service)
+                elif self.command == 'OPTIONS':
+                    self._handle_api_options()
+                else:
+                    self._send_api_error(405, "Method not allowed")
+            except Exception as e:
+                log_debug(f"API处理异常: {e}")
+                import traceback
+                log_debug(f"错误堆栈: {traceback.format_exc()}")
+                self._send_api_error(500, f"Internal server error: {str(e)}")
         except Exception as e:
-            print(f"[ERROR] API处理异常: {e}")
-            self._send_api_error(500, f"Internal server error: {str(e)}")
+            log_debug(f"API请求处理失败: {e}")
+            import traceback
+            log_debug(f"错误堆栈: {traceback.format_exc()}")
+            self._send_api_error(500, f"API request failed: {str(e)}")
     
     def _handle_api_get(self, path, params, campaign_service, editor_service, file_manager_service):
         """处理 GET API 请求"""
@@ -200,18 +235,8 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         else:
             self._send_api_error(404, "API endpoint not found")
     
-    def _handle_api_post(self, path, campaign_service, editor_service, file_manager_service):
+    def _handle_api_post(self, path, request_data, campaign_service, editor_service, file_manager_service):
         """处理 POST API 请求"""
-        # 读取请求体
-        content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length)
-        
-        try:
-            request_data = json.loads(post_data.decode('utf-8'))
-        except json.JSONDecodeError:
-            self._send_api_error(400, "Invalid JSON data")
-            return
-        
         if path == '/api/campaigns':
             # 创建跑团
             name = request_data.get('name')
@@ -248,15 +273,22 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
             else:
                 self._send_api_response({"success": False, "error": "文件创建失败或文件已存在"}, status_code=400)
         elif path == '/api/story/save':
+            log_debug("处理保存剧情请求...")
             campaign_name = request_data.get('campaign')
             story_name = request_data.get('story')
             story_data = request_data.get('data')
             
+            log_debug(f"保存参数: campaign={campaign_name}, story={story_name}")
+            
             if not campaign_name or not story_name or not story_data:
+                log_debug("保存参数不完整")
                 self._send_api_error(400, "Missing required parameters")
                 return
             
+            log_debug("调用editor_service.save_story...")
             success, message = editor_service.save_story(campaign_name, story_name, story_data)
+            
+            log_debug(f"保存结果: success={success}, message={message}")
             
             if success:
                 self._send_api_response({"success": True, "message": message})
@@ -299,20 +331,8 @@ class WebPreviewRequestHandler(SimpleHTTPRequestHandler):
         else:
             self._send_api_error(404, "API endpoint not found")
     
-    def _handle_api_delete(self, path, campaign_service, editor_service, file_manager_service):
+    def _handle_api_delete(self, path, request_data, campaign_service, editor_service, file_manager_service):
         """处理 DELETE API 请求"""
-        # 读取请求体
-        content_length = int(self.headers.get('Content-Length', 0))
-        if content_length > 0:
-            delete_data = self.rfile.read(content_length)
-            try:
-                request_data = json.loads(delete_data.decode('utf-8'))
-            except json.JSONDecodeError:
-                self._send_api_error(400, "Invalid JSON data")
-                return
-        else:
-            request_data = {}
-        
         if path == '/api/campaigns':
             # 删除跑团
             name = request_data.get('name')
@@ -642,10 +662,11 @@ class WebPreviewServer:
         self.port = self._find_free_port()
         self.httpd: Optional[HTTPServer] = None
         self.server_thread: Optional[threading.Thread] = None
-        self.monitor_thread: Optional[threading.Thread] = None
         self.running = False
         self.last_access_time = 0
         self.on_server_stop: Optional[Callable] = None
+        
+        log_debug(f"WebPreviewServer初始化: base_dir={base_dir}, port={self.port}")
     
     def _find_free_port(self) -> int:
         """找到一个可用的端口"""
@@ -660,43 +681,55 @@ class WebPreviewServer:
         启动服务器
         
         Args:
-            auto_monitor: 是否自动监控浏览器活动
+            auto_monitor: 是否自动监控浏览器活动（已禁用，保留参数兼容性）
             
         Returns:
             bool: 启动是否成功
         """
+        log_debug("=== 开始启动Web预览服务器 ===")
+        
         if self.running:
+            log_debug(f"服务器已在端口 {self.port} 运行")
             return True
         
         try:
+            log_debug(f"正在启动Web预览服务器，端口: {self.port}")
+            
             # 切换到服务器根目录并保持
             original_cwd = os.getcwd()
+            log_debug(f"切换工作目录: {original_cwd} -> {self.base_dir}")
             os.chdir(self.base_dir)
             
             # 创建 HTTP 服务器
+            log_debug(f"创建HTTP服务器...")
             self.httpd = HTTPServer(('localhost', self.port), WebPreviewRequestHandler)
             self.httpd._preview_server = self  # 让处理器能访问到服务器实例
             self.running = True
             self.last_access_time = time.time()
             
             # 在后台线程中启动服务器
+            log_debug(f"启动服务器线程...")
             self.server_thread = threading.Thread(target=self._run_server, daemon=True)
             self.server_thread.start()
             
             # 等待服务器启动
             time.sleep(0.5)
             
-            # 启动监控（如果需要）
-            if auto_monitor:
-                self.start_monitoring()
+            # 验证服务器是否真的启动了
+            if not self.server_thread.is_alive():
+                raise Exception("服务器线程启动失败")
             
-            # 注意：不要恢复原始工作目录，保持在base_dir
-            # os.chdir(original_cwd)  # 注释掉这行
+            log_debug(f"服务器启动成功，访问地址: http://localhost:{self.port}")
+            
+            # 不再启动任何自动监控
+            log_debug("服务器启动完成，无自动监控")
             
             return True
             
         except Exception as e:
-            print(f"启动服务器失败: {e}")
+            log_debug(f"启动服务器失败: {e}")
+            import traceback
+            log_debug(f"错误堆栈: {traceback.format_exc()}")
             self.running = False
             # 如果启动失败，恢复原始目录
             try:
@@ -708,19 +741,45 @@ class WebPreviewServer:
     def _run_server(self):
         """在后台运行服务器"""
         try:
+            log_debug(f"服务器开始监听端口 {self.port}")
             self.httpd.serve_forever()
-        except Exception:
-            pass  # 服务器被关闭时会抛出异常，这是正常的
+        except Exception as e:
+            log_debug(f"服务器运行异常: {e}")
+            import traceback
+            log_debug(f"错误堆栈: {traceback.format_exc()}")
+            self.running = False
+        finally:
+            log_debug("服务器线程结束")
     
     def stop(self):
         """停止服务器"""
-        if self.httpd and self.running:
+        if self.running:
+            log_debug(f"正在停止服务器...")
             self.running = False
-            self.httpd.shutdown()
-            self.httpd.server_close()
+            
+            if self.httpd:
+                try:
+                    self.httpd.shutdown()
+                    self.httpd.server_close()
+                    log_debug(f"HTTP服务器已关闭")
+                except Exception as e:
+                    log_debug(f"关闭HTTP服务器时出错: {e}")
+            
+            # 等待服务器线程结束
+            if hasattr(self, 'server_thread') and self.server_thread.is_alive():
+                try:
+                    self.server_thread.join(timeout=2)
+                    if self.server_thread.is_alive():
+                        log_debug(f"服务器线程未能在2秒内结束")
+                    else:
+                        log_debug(f"服务器线程已结束")
+                except Exception as e:
+                    log_debug(f"等待服务器线程结束时出错: {e}")
             
             if self.on_server_stop:
                 self.on_server_stop()
+            
+            log_debug(f"服务器已停止")
     
     def get_url(self, path: str = "", params: dict = None) -> str:
         """
@@ -755,9 +814,26 @@ class WebPreviewServer:
         Returns:
             bool: 是否成功打开
         """
+        log_debug(f"=== 打开Web编辑器 ===")
+        log_debug(f"跑团: {campaign_name}, 剧情: {story_name}")
+        
+        # 确保服务器正在运行
         if not self.running:
+            log_debug("服务器未运行，正在启动...")
             if not self.start():
+                log_debug("服务器启动失败")
                 return False
+        else:
+            # 检查服务器是否真的在运行
+            log_debug("检查服务器连接...")
+            if not self._test_server_connection():
+                log_debug("服务器连接测试失败，尝试重启...")
+                self.stop()
+                if not self.start():
+                    log_debug("服务器重启失败")
+                    return False
+            else:
+                log_debug("服务器连接正常")
         
         # 构建 URL 参数
         params = {
@@ -768,12 +844,35 @@ class WebPreviewServer:
         
         # 获取编辑器页面 URL
         url = self.get_url("tools/editor/editor.html", params)
+        log_debug(f"打开Web编辑器URL: {url}")
         
         try:
             webbrowser.open(url)
+            log_debug("浏览器打开成功")
             return True
         except Exception as e:
-            print(f"打开浏览器失败: {e}")
+            log_debug(f"打开浏览器失败: {e}")
+            return False
+    
+    def _test_server_connection(self) -> bool:
+        """测试服务器连接是否正常"""
+        try:
+            log_debug("开始测试服务器连接...")
+            import urllib.request
+            import urllib.error
+            
+            test_url = self.get_url("api/campaigns")
+            log_debug(f"测试URL: {test_url}")
+            request = urllib.request.Request(test_url)
+            
+            # 增加超时时间到15秒，避免在服务器忙碌时误判
+            with urllib.request.urlopen(request, timeout=15) as response:
+                result = response.status == 200
+                log_debug(f"连接测试结果: {result} (状态码: {response.status})")
+                return result
+                
+        except Exception as e:
+            log_debug(f"服务器连接测试失败: {e}")
             return False
     
     def open_preview(self, campaign_name: str, story_name: str, script_name: Optional[str] = None) -> bool:
@@ -838,64 +937,6 @@ class WebPreviewServer:
         except Exception as e:
             print(f"打开浏览器失败: {e}")
             return False
-    
-    def start_monitoring(self, check_interval: int = 3, idle_threshold: int = 15):
-        """
-        开始监控浏览器活动
-        
-        Args:
-            check_interval: 检查间隔（秒）
-            idle_threshold: 空闲阈值（秒）
-        """
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            return
-        
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_browser_activity,
-            args=(check_interval, idle_threshold),
-            daemon=True
-        )
-        self.monitor_thread.start()
-    
-    def _monitor_browser_activity(self, check_interval: int, idle_threshold: int):
-        """监控浏览器活动，如果长时间无访问则关闭服务器"""
-        while self.running:
-            time.sleep(check_interval)
-            
-            # 检查是否有浏览器进程在运行（如果有psutil）
-            browser_running = True
-            if HAS_PSUTIL:
-                browser_running = self._check_browser_processes()
-            
-            # 如果没有浏览器进程，或者超过阈值时间没有访问
-            idle_time = time.time() - self.last_access_time
-            
-            if not browser_running:
-                self.stop()
-                break
-            elif idle_time > idle_threshold:
-                self.stop()
-                break
-    
-    def _check_browser_processes(self) -> bool:
-        """检查是否有浏览器进程在运行"""
-        if not HAS_PSUTIL:
-            return True
-        
-        browser_names = [
-            'chrome.exe', 'firefox.exe', 'msedge.exe', 'opera.exe', 
-            'safari.exe', 'brave.exe', 'vivaldi.exe',
-            'chrome', 'firefox', 'safari', 'opera', 'brave', 'vivaldi'
-        ]
-        
-        try:
-            for proc in psutil.process_iter(['name']):
-                if proc.info['name'] and any(browser in proc.info['name'].lower() for browser in browser_names):
-                    return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
-        
-        return False
     
     def is_running(self) -> bool:
         """检查服务器是否正在运行"""

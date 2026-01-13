@@ -33,26 +33,40 @@ class EditorAPIHandler(BaseHTTPRequestHandler):
     def get_services(cls):
         """获取服务实例（单例模式）"""
         if cls._campaign_service is None:
-            # 确保使用正确的工作目录
-            import os
-            from pathlib import Path
-            
-            # 保存当前工作目录
-            original_cwd = os.getcwd()
-            
             try:
-                # 切换到项目根目录
-                project_root = Path(__file__).parent.parent.parent.parent
-                os.chdir(project_root)
+                print("[DEBUG] 初始化服务实例...")
+                # 确保使用正确的工作目录
+                import os
+                from pathlib import Path
                 
-                # 创建服务实例
-                cls._campaign_service = CampaignService()
-                cls._editor_service = StoryEditorService(cls._campaign_service)
-                cls._file_manager_service = FileManagerService(cls._campaign_service)
+                # 保存当前工作目录
+                original_cwd = os.getcwd()
+                print(f"[DEBUG] 当前工作目录: {original_cwd}")
                 
-            finally:
-                # 恢复原始工作目录
-                os.chdir(original_cwd)
+                try:
+                    # 切换到项目根目录
+                    project_root = Path(__file__).parent.parent.parent.parent
+                    print(f"[DEBUG] 项目根目录: {project_root}")
+                    os.chdir(project_root)
+                    
+                    # 创建服务实例
+                    print("[DEBUG] 创建CampaignService...")
+                    cls._campaign_service = CampaignService()
+                    print("[DEBUG] 创建StoryEditorService...")
+                    cls._editor_service = StoryEditorService(cls._campaign_service)
+                    print("[DEBUG] 创建FileManagerService...")
+                    cls._file_manager_service = FileManagerService(cls._campaign_service)
+                    print("[DEBUG] 服务实例创建完成")
+                    
+                finally:
+                    # 恢复原始工作目录
+                    os.chdir(original_cwd)
+                    
+            except Exception as e:
+                print(f"[ERROR] 服务实例初始化失败: {e}")
+                import traceback
+                traceback.print_exc()
+                raise e
                 
         return cls._campaign_service, cls._editor_service, cls._file_manager_service
     
