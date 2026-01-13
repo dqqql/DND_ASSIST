@@ -7,6 +7,8 @@ import os
 import shutil
 from pathlib import Path
 from typing import List, Optional, Dict
+from functools import lru_cache
+import time
 
 from .models import Campaign, FileInfo
 from .config import (
@@ -26,9 +28,24 @@ class FileManagerService:
             campaign_service: 跑团管理服务实例
         """
         self.campaign_service = campaign_service
+        # 添加文件列表缓存
+        self._file_cache = {}
+        self._cache_timestamps = {}
+    
+    def _get_cache_key(self, campaign_name: str, category: str, sub_path: str = "") -> str:
+        """生成缓存键"""
+        return f"{campaign_name}:{category}:{sub_path}"
+    
+    def _invalidate_cache(self, campaign_name: str, category: str, sub_path: str = ""):
+        """使指定缓存失效"""
+        cache_key = self._get_cache_key(campaign_name, category, sub_path)
+        if cache_key in self._file_cache:
+            del self._file_cache[cache_key]
+        if cache_key in self._cache_timestamps:
+            del self._cache_timestamps[cache_key]
     
     def list_files(self, category: str, sub_path: str = "") -> List[FileInfo]:
-        """获取文件列表
+        """获取文件列表（带缓存优化）
         
         Args:
             category: 分类名称
@@ -41,6 +58,15 @@ class FileManagerService:
         if not campaign:
             return []
         
+        # 检查缓存
+        cache_key = self._get_cache_key(campaign.name, category, sub_path)
+        current_time = time.time()
+        
+        if (cache_key in self._file_cache and 
+            cache_key in self._cache_timestamps and
+            current_time - self._cache_timestamps[cache_key] < 2.0):  # 2秒缓存
+            return self._file_cache[cache_key]
+        
         # 构建目标路径
         if category == "notes" and sub_path:
             target_path = campaign.get_notes_path(sub_path)
@@ -48,8 +74,18 @@ class FileManagerService:
             target_path = campaign.get_category_path(category)
         
         if not target_path.exists():
-            return []
+            result = []
+        else:
+            result = self._scan_files(campaign, category, sub_path, target_path)
         
+        # 更新缓存
+        self._file_cache[cache_key] = result
+        self._cache_timestamps[cache_key] = current_time
+        
+        return result
+    
+    def _scan_files(self, campaign: Campaign, category: str, sub_path: str, target_path: Path) -> List[FileInfo]:
+        """扫描文件目录"""
         files = []
         hidden_key = f"{category}:{sub_path}" if category == "notes" and sub_path else category
         hidden_files = self.campaign_service.get_hidden_files_for_category(campaign, hidden_key)
@@ -164,6 +200,9 @@ class FileManagerService:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
+            # 清理缓存
+            self._invalidate_cache(campaign.name, category, sub_path)
+            
             return True
         except Exception:
             return False
@@ -195,7 +234,13 @@ class FileManagerService:
             actual_filename = display_name.replace("[DIR] ", "") if display_name.startswith("[DIR] ") else display_name
         
         # 添加到隐藏列表
-        return self.campaign_service.add_hidden_file(campaign, hidden_key, actual_filename)
+        success = self.campaign_service.add_hidden_file(campaign, hidden_key, actual_filename)
+        
+        if success:
+            # 清理缓存
+            self._invalidate_cache(campaign.name, category, sub_path)
+        
+        return success
     
     def restore_file(self, category: str, filename: str, sub_path: str = "") -> bool:
         """恢复文件（从隐藏列表移除）

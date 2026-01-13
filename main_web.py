@@ -96,11 +96,16 @@ def print_banner():
 
 
 def check_dependencies():
-    """检查必要的依赖"""
+    """检查必要的依赖（优化版本）"""
     missing_deps = []
     
     try:
-        from PIL import Image
+        # 使用更快的导入检查
+        import importlib.util
+        
+        # 检查 Pillow
+        if importlib.util.find_spec("PIL") is None:
+            missing_deps.append("Pillow")
     except ImportError:
         missing_deps.append("Pillow")
     
@@ -116,12 +121,12 @@ def check_dependencies():
 
 
 def setup_project_structure():
-    """确保项目结构完整"""
+    """确保项目结构完整（优化版本）"""
     # 确保数据目录存在
     data_dir = project_root / "data" / "campaigns"
     data_dir.mkdir(parents=True, exist_ok=True)
     
-    # 确保Web资源目录存在
+    # 批量创建Web资源目录
     web_dirs = [
         "tools/web_ui",
         "tools/editor", 

@@ -6,6 +6,9 @@
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
+from functools import lru_cache
+import time
+import hashlib
 
 from .models import StoryGraph, StoryNode, StoryBranch
 from .story_parser import StoryGraphService
@@ -18,10 +21,39 @@ class StoryEditorService:
     def __init__(self, campaign_service: CampaignService):
         self.campaign_service = campaign_service
         self.story_parser = StoryGraphService()
+        # 添加文件内容缓存
+        self._story_cache = {}
+        self._cache_timestamps = {}
+        self._file_hashes = {}
+    
+    def _get_file_hash(self, file_path: Path) -> str:
+        """获取文件内容哈希值"""
+        try:
+            with open(file_path, 'rb') as f:
+                return hashlib.md5(f.read()).hexdigest()
+        except Exception:
+            return ""
+    
+    def _is_cache_valid(self, cache_key: str, file_path: Path) -> bool:
+        """检查缓存是否有效"""
+        if cache_key not in self._story_cache:
+            return False
+        
+        # 检查时间戳（5秒内有效）
+        current_time = time.time()
+        if current_time - self._cache_timestamps.get(cache_key, 0) > 5.0:
+            return False
+        
+        # 检查文件哈希值
+        current_hash = self._get_file_hash(file_path)
+        if current_hash != self._file_hashes.get(cache_key, ""):
+            return False
+        
+        return True
     
     def load_story(self, campaign_name: str, story_name: str) -> Optional[Dict[str, Any]]:
         """
-        加载剧情数据
+        加载剧情数据（带缓存优化）
         
         Args:
             campaign_name: 跑团名称
@@ -41,9 +73,19 @@ class StoryEditorService:
             if not story_path.exists():
                 return None
             
+            # 检查缓存
+            cache_key = f"{campaign_name}:{story_name}"
+            if self._is_cache_valid(cache_key, story_path):
+                return self._story_cache[cache_key]
+            
             # 读取文件
             with open(story_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            
+            # 更新缓存
+            self._story_cache[cache_key] = data
+            self._cache_timestamps[cache_key] = time.time()
+            self._file_hashes[cache_key] = self._get_file_hash(story_path)
             
             return data
             
@@ -69,8 +111,8 @@ class StoryEditorService:
             if not campaign:
                 return False, "跑团不存在"
             
-            # 验证数据格式
-            validation_result = self.validate_story_data(story_data)
+            # 快速验证数据格式（优化版本）
+            validation_result = self._quick_validate_story_data(story_data)
             if not validation_result[0]:
                 return False, f"数据验证失败: {validation_result[1]}"
             
@@ -92,6 +134,12 @@ class StoryEditorService:
                 if backup_path and backup_path.exists():
                     backup_path.unlink()
                 
+                # 更新缓存
+                cache_key = f"{campaign_name}:{story_name}"
+                self._story_cache[cache_key] = story_data
+                self._cache_timestamps[cache_key] = time.time()
+                self._file_hashes[cache_key] = self._get_file_hash(story_path)
+                
                 return True, "保存成功"
                 
             except Exception as e:
@@ -103,6 +151,50 @@ class StoryEditorService:
         except Exception as e:
             print(f"保存剧情失败: {e}")
             return False, f"保存失败: {str(e)}"
+    
+    def _quick_validate_story_data(self, story_data: Dict[str, Any]) -> Tuple[bool, str]:
+        """
+        快速验证剧情数据格式（优化版本）
+        
+        Args:
+            story_data: 剧情数据
+            
+        Returns:
+            Tuple[bool, str]: (是否有效, 错误信息)
+        """
+        try:
+            # 基本结构检查
+            if not isinstance(story_data, dict):
+                return False, "数据必须是字典格式"
+            
+            if 'title' not in story_data:
+                return False, "缺少 title 字段"
+            
+            if 'nodes' not in story_data:
+                return False, "缺少 nodes 字段"
+            
+            nodes = story_data['nodes']
+            if not isinstance(nodes, list):
+                return False, "nodes 必须是数组格式"
+            
+            # 快速检查节点ID唯一性
+            node_ids = set()
+            for i, node in enumerate(nodes):
+                if not isinstance(node, dict):
+                    return False, f"节点 {i} 必须是字典格式"
+                
+                node_id = node.get('id')
+                if not node_id or not isinstance(node_id, str):
+                    return False, f"节点 {i} 的 id 必须是非空字符串"
+                
+                if node_id in node_ids:
+                    return False, f"节点 ID '{node_id}' 重复"
+                node_ids.add(node_id)
+            
+            return True, "验证通过"
+            
+        except Exception as e:
+            return False, f"验证过程出错: {str(e)}"
     
     def validate_story_data(self, story_data: Dict[str, Any]) -> Tuple[bool, str]:
         """

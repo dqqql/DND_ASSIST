@@ -7,6 +7,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import List, Optional, Dict, Set
+from functools import lru_cache
 
 from .models import Campaign
 from .config import DATA_DIR, CATEGORIES, HIDDEN_FILES_LIST, ensure_data_dir
@@ -18,22 +19,43 @@ class CampaignService:
     def __init__(self):
         ensure_data_dir()
         self._current_campaign: Optional[Campaign] = None
+        # 添加缓存以提高性能
+        self._campaigns_cache = None
+        self._cache_timestamp = 0
     
     def get_current_campaign(self) -> Optional[Campaign]:
         """获取当前选中的跑团"""
         return self._current_campaign
     
     def list_campaigns(self) -> List[str]:
-        """获取所有跑团列表"""
+        """获取所有跑团列表（带缓存优化）"""
         if not DATA_DIR.exists():
             return []
+        
+        # 检查缓存是否有效（1秒内）
+        import time
+        current_time = time.time()
+        if (self._campaigns_cache is not None and 
+            current_time - self._cache_timestamp < 1.0):
+            return self._campaigns_cache
         
         campaigns = []
         for item in DATA_DIR.iterdir():
             if item.is_dir():
                 campaigns.append(item.name)
         
-        return sorted(campaigns)
+        campaigns = sorted(campaigns)
+        
+        # 更新缓存
+        self._campaigns_cache = campaigns
+        self._cache_timestamp = current_time
+        
+        return campaigns
+    
+    def _invalidate_cache(self):
+        """使缓存失效"""
+        self._campaigns_cache = None
+        self._cache_timestamp = 0
     
     def create_campaign(self, name: str) -> bool:
         """创建新跑团
@@ -60,6 +82,9 @@ class CampaignService:
             # 创建分类子目录
             for category in CATEGORIES.values():
                 (campaign_path / category).mkdir()
+            
+            # 使缓存失效
+            self._invalidate_cache()
             
             return True
         except Exception:
@@ -91,6 +116,9 @@ class CampaignService:
             # 如果删除的是当前跑团，清空当前选择
             if self._current_campaign and self._current_campaign.name == name:
                 self._current_campaign = None
+            
+            # 使缓存失效
+            self._invalidate_cache()
             
             return True
         except Exception:

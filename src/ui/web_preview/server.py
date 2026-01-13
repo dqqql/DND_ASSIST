@@ -865,8 +865,8 @@ class WebPreviewServer:
             log_debug(f"测试URL: {test_url}")
             request = urllib.request.Request(test_url)
             
-            # 增加超时时间到15秒，避免在服务器忙碌时误判
-            with urllib.request.urlopen(request, timeout=15) as response:
+            # 优化：减少超时时间到3秒，提高响应速度
+            with urllib.request.urlopen(request, timeout=3) as response:
                 result = response.status == 200
                 log_debug(f"连接测试结果: {result} (状态码: {response.status})")
                 return result
